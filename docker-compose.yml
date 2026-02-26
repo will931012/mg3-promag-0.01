@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16
+    container_name: promag-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: promag
+      POSTGRES_USER: promag_user
+      POSTGRES_PASSWORD: promag_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - promag_pg_data:/var/lib/postgresql/data
+volumes:
+  promag_pg_data:
