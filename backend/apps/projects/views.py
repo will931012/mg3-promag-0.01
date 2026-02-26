@@ -5,8 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Project
-from .serializers import ProjectSerializer
+from .models import Milestone, Project, Risk, Task
+from .serializers import MilestoneSerializer, ProjectSerializer, RiskSerializer, TaskSerializer
 
 
 class HealthView(APIView):
@@ -69,4 +69,22 @@ class LogoutView(APIView):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all().order_by('-created_at')
     serializer_class = ProjectSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class TaskViewSet(viewsets.ModelViewSet):
+    queryset = Task.objects.select_related('project').all().order_by('-created_at')
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class MilestoneViewSet(viewsets.ModelViewSet):
+    queryset = Milestone.objects.select_related('project').all().order_by('-created_at')
+    serializer_class = MilestoneSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class RiskViewSet(viewsets.ModelViewSet):
+    queryset = Risk.objects.select_related('project').all().order_by('-created_at')
+    serializer_class = RiskSerializer
     permission_classes = [IsAuthenticated]
