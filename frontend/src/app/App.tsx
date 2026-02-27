@@ -3,27 +3,65 @@ import { FormEvent, useEffect, useState } from 'react'
 import { TOKEN_KEY } from './config'
 import LoadingScreen from '../components/common/LoadingScreen'
 import LoginPage from '../pages/LoginPage'
-import DashboardPage from '../pages/DashboardPage'
+import WorkspacePage from '../pages/WorkspacePage'
 import { getCurrentUser, getHealth, login, logout } from '../services/authService'
-import { getProjects } from '../services/projectService'
+import {
+  fetchActionItems,
+  fetchProjects,
+  fetchRfis,
+  fetchSubmittals,
+  fetchSummary,
+  fetchUsers,
+} from '../services/workspaceService'
 import type { AuthUser } from '../types/auth'
-import type { Project } from '../types/project'
+import type { ActionItemRecord, DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
+
+const emptySummary: DashboardSummary = {
+  active_projects: 0,
+  submittals_open: 0,
+  submittals_late: 0,
+  rfis_open: 0,
+  rfis_overdue_open: 0,
+  tasks_open_in_progress: 0,
+  tasks_overdue: 0,
+}
 
 export default function App() {
   const [booting, setBooting] = useState(true)
   const [health, setHealth] = useState('checking...')
-  const [projects, setProjects] = useState<Project[]>([])
+  const [summary, setSummary] = useState<DashboardSummary>(emptySummary)
+  const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [submittals, setSubmittals] = useState<SubmittalRecord[]>([])
+  const [rfis, setRfis] = useState<RfiRecord[]>([])
+  const [actionItems, setActionItems] = useState<ActionItemRecord[]>([])
+  const [users, setUsers] = useState<AuthUser[]>([])
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loggingIn, setLoggingIn] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const refreshWorkspace = async (authToken: string) => {
+    const [nextSummary, nextProjects, nextSubmittals, nextRfis, nextActions, nextUsers] = await Promise.all([
+      fetchSummary(authToken),
+      fetchProjects(authToken),
+      fetchSubmittals(authToken),
+      fetchRfis(authToken),
+      fetchActionItems(authToken),
+      fetchUsers(authToken),
+    ])
+    setSummary(nextSummary)
+    setProjects(nextProjects)
+    setSubmittals(nextSubmittals)
+    setRfis(nextRfis)
+    setActionItems(nextActions)
+    setUsers(nextUsers)
+  }
 
   useEffect(() => {
     const bootstrap = async () => {
-      const minDelay = new Promise((resolve) => setTimeout(resolve, 1200))
-
       try {
         setHealth(await getHealth())
       } catch {
@@ -34,10 +72,10 @@ export default function App() {
       if (savedToken) {
         try {
           const meResponse = await getCurrentUser(savedToken)
-          if (meResponse.ok && meResponse.data) {
+          if (meResponse.ok && meResponse.data?.user) {
             setToken(savedToken)
             setUser(meResponse.data.user)
-            setProjects(await getProjects(savedToken))
+            await refreshWorkspace(savedToken)
           } else {
             localStorage.removeItem(TOKEN_KEY)
           }
@@ -46,7 +84,6 @@ export default function App() {
         }
       }
 
-      await minDelay
       setBooting(false)
     }
 
@@ -69,9 +106,10 @@ export default function App() {
       localStorage.setItem(TOKEN_KEY, response.data.token)
       setToken(response.data.token)
       setUser(response.data.user)
+      await refreshWorkspace(response.data.token)
       setUsername('')
       setPassword('')
-      setProjects(await getProjects(response.data.token))
+      setMessage('')
     } catch {
       setLoginError('Unable to reach API server.')
     } finally {
@@ -84,21 +122,25 @@ export default function App() {
       try {
         await logout(token)
       } catch {
-        // Clear local auth state even if request fails.
+        // ignore
       }
     }
-
     localStorage.removeItem(TOKEN_KEY)
     setToken(null)
     setUser(null)
     setProjects([])
+    setSubmittals([])
+    setRfis([])
+    setActionItems([])
+    setUsers([])
+    setSummary(emptySummary)
   }
 
   if (booting) {
     return <LoadingScreen />
   }
 
-  if (!user) {
+  if (!user || !token) {
     return (
       <LoginPage
         health={health}
@@ -113,5 +155,21 @@ export default function App() {
     )
   }
 
-  return <DashboardPage user={user} health={health} projects={projects} onLogout={handleLogout} />
+  return (
+    <WorkspacePage
+      health={health}
+      user={user}
+      token={token}
+      summary={summary}
+      projects={projects}
+      submittals={submittals}
+      rfis={rfis}
+      actionItems={actionItems}
+      users={users}
+      message={message}
+      setMessage={setMessage}
+      onLogout={handleLogout}
+      refreshWorkspace={refreshWorkspace}
+    />
+  )
 }

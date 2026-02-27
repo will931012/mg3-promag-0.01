@@ -1,0 +1,30 @@
+{
+    "name":  "promag-backend",
+    "version":  "1.0.0",
+    "private":  true,
+    "description":  "Node.js Express backend for MG3 ProMag",
+    "type":  "module",
+    "main":  "src/server.js",
+    "scripts":  {
+                    "start":  "node src/server.js",
+                    "dev":  "nodemon src/server.js",
+                    "db:reset":  "node src/db/reset.js",
+                    "db:drop":  "node src/db/drop-all.js",
+                    "db:create:users":  "node src/db/create-users-table.js",
+                    "db:seed:user":  "node src/db/seed-user.js",
+                    "db:create:product_list":  "node src/db/create-product-list.js",
+                    "db:create:submittal_tracker":  "node src/db/create-submittal-tracker.js",
+                    "db:create:rfi_tracker":  "node src/db/create-rfi-tracker.js",
+                    "db:create:action_items":  "node src/db/create-action-items.js"
+                },
+    "dependencies":  {
+                         "cors":  "^2.8.5",
+                         "dotenv":  "^16.4.5",
+                         "express":  "^4.21.2",
+                         "morgan":  "^1.10.0",
+                         "pg":  "^8.13.1"
+                     },
+    "devDependencies":  {
+                            "nodemon":  "^3.1.7"
+                        }
+}

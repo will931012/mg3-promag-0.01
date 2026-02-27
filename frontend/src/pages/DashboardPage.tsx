@@ -1,20 +1,47 @@
 import DashboardHeader from '../components/dashboard/DashboardHeader'
 import ProjectCard from '../components/dashboard/ProjectCard'
 import type { AuthUser } from '../types/auth'
+import type { DashboardSummary } from '../types/dashboard'
 import type { Project } from '../types/project'
 
 type DashboardPageProps = {
   user: AuthUser
   health: string
+  summary: DashboardSummary
   projects: Project[]
   onLogout: () => void
 }
 
-export default function DashboardPage({ user, health, projects, onLogout }: DashboardPageProps) {
+const trackerRows = (summary: DashboardSummary) => [
+  { label: 'Active Projects', value: summary.active_projects },
+  { label: 'Submittals OPEN', value: summary.submittals_open },
+  { label: 'Submittals LATE', value: summary.submittals_late },
+  { label: 'RFIs OPEN', value: summary.rfis_open },
+  { label: 'RFIs Overdue (Open)', value: summary.rfis_overdue_open },
+  { label: 'Tasks Open/In Progress', value: summary.tasks_open_in_progress },
+  { label: 'Tasks Overdue', value: summary.tasks_overdue },
+]
+
+export default function DashboardPage({ user, health, summary, projects, onLogout }: DashboardPageProps) {
   return (
     <div className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-6xl p-6">
         <DashboardHeader health={health} user={user} onLogout={onLogout} />
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-semibold text-slate-900">PERSONAL CONSTRUCTION TRACKER</h2>
+          <div className="mt-6 space-y-2">
+            {trackerRows(summary).map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3"
+              >
+                <span className="text-lg font-semibold text-slate-800">{item.label}</span>
+                <span className="min-w-8 text-right text-2xl font-bold text-slate-900">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
