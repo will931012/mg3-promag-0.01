@@ -59,7 +59,7 @@ export default function LoginForm({
 
       <button
         type="submit"
-        disabled={loggingIn || health !== 'ok'}
+        disabled={loggingIn}
         className="mt-6 w-full rounded-xl bg-brand-700 px-4 py-2.5 font-semibold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-400"
       >
         {loggingIn ? 'Signing in...' : 'Sign in'}
