@@ -79,7 +79,9 @@ export default function WorkspacePage({
 
         {message ? <p className="mt-4 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{message}</p> : null}
 
-        {activeTab === 'dashboard' ? <DashboardPanel summary={summary} /> : null}
+        {activeTab === 'dashboard' ? (
+          <DashboardPanel summary={summary} projects={projects} submittals={submittals} rfis={rfis} />
+        ) : null}
         {activeTab === 'projects' ? (
           <ProjectsPanel token={token} projects={projects} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
         ) : null}
