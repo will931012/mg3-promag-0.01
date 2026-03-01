@@ -9,11 +9,14 @@ CREATE TABLE IF NOT EXISTS rfi_tracker (
   description TEXT,
   from_contractor VARCHAR(255),
   date_sent DATE,
-  sent_to VARCHAR(255),
+  sent_to_aor VARCHAR(255),
+  sent_to_eor TEXT,
+  sent_to_provider VARCHAR(255),
+  sent_to_date DATE,
   response_due DATE,
   date_answered DATE,
   status VARCHAR(100),
-  days_open INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   responsible VARCHAR(255),
   notes TEXT
 );

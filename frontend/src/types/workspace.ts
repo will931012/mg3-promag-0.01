@@ -71,7 +71,10 @@ export type RfiRecord = {
   description: string | null
   from_contractor: string | null
   date_sent: string | null
-  sent_to: string | null
+  sent_to_aor: string | null
+  sent_to_eor: string | null
+  sent_to_provider: string | null
+  sent_to_date: string | null
   response_due: string | null
   date_answered: string | null
   status: string | null

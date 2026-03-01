@@ -3,9 +3,34 @@ import pool from "../db/pool.js";
 
 const router = Router();
 
+const selectRfiSql = `
+  SELECT
+    id,
+    project_id,
+    rfi_number,
+    subject,
+    description,
+    from_contractor,
+    date_sent,
+    sent_to_aor,
+    sent_to_eor,
+    sent_to_provider,
+    sent_to_date,
+    response_due,
+    date_answered,
+    status,
+    CASE
+      WHEN status = 'Approved' THEN (COALESCE(date_answered, CURRENT_DATE) - created_at::date)::int
+      ELSE (CURRENT_DATE - created_at::date)::int
+    END AS days_open,
+    responsible,
+    notes
+  FROM rfi_tracker
+`;
+
 router.get("/", async (_req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM rfi_tracker ORDER BY id DESC");
+    const { rows } = await pool.query(`${selectRfiSql} ORDER BY id DESC`);
     return res.json(rows);
   } catch (error) {
     if (error?.code === "42P01") return res.json([]);
@@ -21,11 +46,13 @@ router.post("/", async (req, res) => {
     description,
     from_contractor,
     date_sent,
-    sent_to,
+    sent_to_aor,
+    sent_to_eor,
+    sent_to_provider,
+    sent_to_date,
     response_due,
     date_answered,
     status,
-    days_open,
     responsible,
     notes
   } = req.body || {};
@@ -33,14 +60,51 @@ router.post("/", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO rfi_tracker (
-        project_id, rfi_number, subject, description, from_contractor, date_sent, sent_to,
-        response_due, date_answered, status, days_open, responsible, notes
+        project_id, rfi_number, subject, description, from_contractor, date_sent, sent_to_aor, sent_to_eor,
+        sent_to_provider, sent_to_date, response_due, date_answered, status, responsible, notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-      RETURNING *`,
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,
+        CASE WHEN ($7 IS NOT NULL OR $8 IS NOT NULL) THEN COALESCE($10, CURRENT_DATE) ELSE $10 END,
+        $11,CASE WHEN $13 = 'Approved' THEN COALESCE($12, CURRENT_DATE) ELSE $12 END,$13,$14,$15
+      )
+      RETURNING
+        id,
+        project_id,
+        rfi_number,
+        subject,
+        description,
+        from_contractor,
+        date_sent,
+        sent_to_aor,
+        sent_to_eor,
+        sent_to_provider,
+        sent_to_date,
+        response_due,
+        date_answered,
+        status,
+        CASE
+          WHEN status = 'Approved' THEN (COALESCE(date_answered, CURRENT_DATE) - created_at::date)::int
+          ELSE (CURRENT_DATE - created_at::date)::int
+        END AS days_open,
+        responsible,
+        notes`,
       [
-        project_id, rfi_number, subject, description, from_contractor, date_sent, sent_to,
-        response_due, date_answered, status, days_open, responsible, notes
+        project_id,
+        rfi_number,
+        subject,
+        description,
+        from_contractor,
+        date_sent,
+        sent_to_aor,
+        sent_to_eor,
+        sent_to_provider,
+        sent_to_date,
+        response_due,
+        date_answered,
+        status,
+        responsible,
+        notes
       ]
     );
     return res.status(201).json(rows[0]);
@@ -60,11 +124,13 @@ router.put("/:id", async (req, res) => {
     description,
     from_contractor,
     date_sent,
-    sent_to,
+    sent_to_aor,
+    sent_to_eor,
+    sent_to_provider,
+    sent_to_date,
     response_due,
     date_answered,
     status,
-    days_open,
     responsible,
     notes
   } = req.body || {};
@@ -78,16 +144,61 @@ router.put("/:id", async (req, res) => {
            description = $5,
            from_contractor = $6,
            date_sent = $7,
-           sent_to = $8,
-           response_due = $9,
-           date_answered = $10,
-           status = $11,
-           days_open = $12,
-           responsible = $13,
-           notes = $14
+           sent_to_aor = $8,
+           sent_to_eor = $9,
+           sent_to_provider = $10,
+           sent_to_date = CASE
+             WHEN ($8 IS DISTINCT FROM sent_to_aor OR $9 IS DISTINCT FROM sent_to_eor) THEN COALESCE($11, CURRENT_DATE)
+             ELSE COALESCE($11, sent_to_date)
+           END,
+           response_due = $12,
+           date_answered = CASE
+             WHEN $14 = 'Approved' THEN COALESCE($13, date_answered, CURRENT_DATE)
+             ELSE $13
+           END,
+           status = $14,
+           responsible = $15,
+           notes = $16
        WHERE id = $1
-       RETURNING *`,
-      [id, project_id, rfi_number, subject, description, from_contractor, date_sent, sent_to, response_due, date_answered, status, days_open, responsible, notes]
+       RETURNING
+         id,
+         project_id,
+         rfi_number,
+         subject,
+         description,
+         from_contractor,
+         date_sent,
+         sent_to_aor,
+         sent_to_eor,
+         sent_to_provider,
+         sent_to_date,
+         response_due,         
+         date_answered,
+         status,
+         CASE
+           WHEN status = 'Approved' THEN (COALESCE(date_answered, CURRENT_DATE) - created_at::date)::int
+           ELSE (CURRENT_DATE - created_at::date)::int
+         END AS days_open,
+         responsible,
+         notes`,
+      [
+        id,
+        project_id,
+        rfi_number,
+        subject,
+        description,
+        from_contractor,
+        date_sent,
+        sent_to_aor,
+        sent_to_eor,
+        sent_to_provider,
+        sent_to_date,
+        response_due,
+        date_answered,
+        status,
+        responsible,
+        notes
+      ]
     );
     if (!rows[0]) return res.status(404).json({ detail: "RFI not found." });
     return res.json(rows[0]);
