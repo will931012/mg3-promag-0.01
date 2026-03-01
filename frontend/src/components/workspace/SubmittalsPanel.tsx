@@ -3,8 +3,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { EOR_TYPES } from '../../app/eorTypes'
 import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
-import { createProvider, createSubmittal, deleteSubmittal, fetchAors, fetchEors, fetchProviders, updateSubmittal } from '../../services/workspaceService'
-import type { AorRecord, EorRecord, ProjectRecord, ProviderRecord, SubmittalRecord } from '../../types/workspace'
+import { createSubcontractor, createSubmittal, deleteSubmittal, fetchSubcontractors, updateSubmittal } from '../../services/workspaceService'
+import type { ProjectRecord, SubcontractorRecord, SubmittalRecord } from '../../types/workspace'
 
 type SubmittalsPanelProps = {
   token: string
@@ -108,13 +108,12 @@ const emptyForm: Omit<SubmittalRecord, 'id'> = {
   project_id: '',
   division_csi: '',
   submittal_number: '',
-  description: '',
+  subject: '',
   contractor: '',
-  start_date: '',
   date_received: '',
   sent_to_aor: '',
   sent_to_eor: '',
-  sent_to_provider: '',
+  sent_to_subcontractor: '',
   sent_to_date: '',
   approvers: '',
   approval_status: '',
@@ -132,52 +131,53 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
   const [editingId, setEditingId] = useState<number | null>(null)
   const [projectSearch, setProjectSearch] = useState('')
   const [showProjectSuggestions, setShowProjectSuggestions] = useState(false)
-  const [aors, setAors] = useState<AorRecord[]>([])
-  const [eors, setEors] = useState<EorRecord[]>([])
-  const [providers, setProviders] = useState<ProviderRecord[]>([])
-  const [sentToAorInput, setSentToAorInput] = useState('')
-  const [sentToEorInput, setSentToEorInput] = useState('')
-  const [sentToProviderInput, setSentToProviderInput] = useState('')
-  const [showAorSuggestions, setShowAorSuggestions] = useState(false)
-  const [showEorSuggestions, setShowEorSuggestions] = useState(false)
-  const [showProviderSuggestions, setShowProviderSuggestions] = useState(false)
+  const [subcontractors, setSubcontractors] = useState<SubcontractorRecord[]>([])
+  const [selectedProjectEorOption, setSelectedProjectEorOption] = useState('')
+  const [sentToSubcontractorInput, setSentToSubcontractorInput] = useState('')
+  const [showSubcontractorSuggestions, setShowSubcontractorSuggestions] = useState(false)
   const [selectedEorType, setSelectedEorType] = useState<EorType>('Civil EOR')
   const [approverInput, setApproverInput] = useState('')
   const [noteInput, setNoteInput] = useState('')
-  const [showProviderModal, setShowProviderModal] = useState(false)
-  const [newProviderName, setNewProviderName] = useState('')
+  const [showSubcontractorModal, setShowSubcontractorModal] = useState(false)
+  const [newSubcontractorName, setNewSubcontractorName] = useState('')
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
   )
-  const sortedAors = useMemo(() => [...aors].sort((a, b) => a.name.localeCompare(b.name)), [aors])
-  const filteredAors = useMemo(() => {
-    const query = sentToAorInput.trim().toLowerCase()
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.project_id === form.project_id) ?? null,
+    [projects, form.project_id]
+  )
+  const projectAorOption = useMemo(() => String(selectedProject?.aor || '').trim(), [selectedProject])
+  const projectEorOptions = useMemo(
+    () =>
+      splitMultiValues(selectedProject?.eor ?? '').map((item) => {
+        const [rawType, ...rest] = item.split(':')
+        return {
+          raw: item,
+          type: rawType?.trim() as EorType,
+          name: rest.join(':').trim(),
+        }
+      }),
+    [selectedProject]
+  )
+  const filteredProjectEorOptions = useMemo(
+    () => projectEorOptions.filter((item) => item.type === selectedEorType),
+    [projectEorOptions, selectedEorType]
+  )
+  const sortedSubcontractors = useMemo(() => [...subcontractors].sort((a, b) => a.name.localeCompare(b.name)), [subcontractors])
+  const filteredSubcontractors = useMemo(() => {
+    const query = sentToSubcontractorInput.trim().toLowerCase()
     if (query.length < 1) return []
-    return sortedAors.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
-  }, [sentToAorInput, sortedAors])
-  const filteredEors = useMemo(() => {
-    const query = sentToEorInput.trim().toLowerCase()
-    if (query.length < 1) return []
-    return eors
-      .filter((item) => item.type === selectedEorType && item.name.toLowerCase().includes(query))
-      .slice(0, 8)
-  }, [eors, selectedEorType, sentToEorInput])
-  const sortedProviders = useMemo(() => [...providers].sort((a, b) => a.name.localeCompare(b.name)), [providers])
-  const filteredProviders = useMemo(() => {
-    const query = sentToProviderInput.trim().toLowerCase()
-    if (query.length < 1) return []
-    return sortedProviders.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
-  }, [sentToProviderInput, sortedProviders])
+    return sortedSubcontractors.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
+  }, [sentToSubcontractorInput, sortedSubcontractors])
 
   useEffect(() => {
     let mounted = true
     const loadLists = async () => {
-      const [nextAors, nextEors, nextProviders] = await Promise.all([fetchAors(token), fetchEors(token), fetchProviders(token)])
+      const nextSubcontractors = await fetchSubcontractors(token)
       if (!mounted) return
-      setAors(nextAors)
-      setEors(nextEors)
-      setProviders(nextProviders)
+      setSubcontractors(nextSubcontractors)
     }
     loadLists()
     return () => { mounted = false }
@@ -195,23 +195,23 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     const options: string[] = []
     if (form.sent_to_aor?.trim()) options.push(form.sent_to_aor.trim())
     options.push(...splitMultiValues(form.sent_to_eor))
-    if (form.sent_to_provider?.trim()) options.push(form.sent_to_provider.trim())
+    if (form.sent_to_subcontractor?.trim()) options.push(form.sent_to_subcontractor.trim())
     return Array.from(new Set(options))
-  }, [form.sent_to_aor, form.sent_to_eor, form.sent_to_provider])
+  }, [form.sent_to_aor, form.sent_to_eor, form.sent_to_subcontractor])
 
-  const handleCreateProvider = async () => {
-    const name = newProviderName.trim()
-    if (!name) return setMessage('Provider name is required.')
-    const res = await createProvider(token, { name })
-    const createdProvider = res.data
-    if (!res.ok || !createdProvider) return setMessage('Failed to create provider.')
-    const nextProviders = [...providers, createdProvider].sort((a, b) => a.name.localeCompare(b.name))
-    setProviders(nextProviders)
-    setSentToProviderInput(createdProvider.name)
-    setForm((p) => ({ ...p, sent_to_provider: createdProvider.name }))
-    setNewProviderName('')
-    setShowProviderModal(false)
-    setMessage('Provider created.')
+  const handleCreateSubcontractor = async () => {
+    const name = newSubcontractorName.trim()
+    if (!name) return setMessage('Subcontractor name is required.')
+    const res = await createSubcontractor(token, { name })
+    const createdSubcontractor = res.data
+    if (!res.ok || !createdSubcontractor) return setMessage('Failed to create subcontractor.')
+    const nextSubcontractors = [...subcontractors, createdSubcontractor].sort((a, b) => a.name.localeCompare(b.name))
+    setSubcontractors(nextSubcontractors)
+    setSentToSubcontractorInput(createdSubcontractor.name)
+    setForm((p) => ({ ...p, sent_to_subcontractor: createdSubcontractor.name }))
+    setNewSubcontractorName('')
+    setShowSubcontractorModal(false)
+    setMessage('Subcontractor created.')
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -222,13 +222,12 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       project_id: toNullableString(form.project_id),
       division_csi: toNullableString(form.division_csi),
       submittal_number: toNullableString(form.submittal_number),
-      description: toNullableString(form.description),
+      subject: toNullableString(form.subject),
       contractor: toNullableString(form.contractor),
-      start_date: toNullableString(form.start_date),
       date_received: toNullableString(form.date_received),
       sent_to_aor: toNullableString(form.sent_to_aor),
       sent_to_eor: toNullableString(form.sent_to_eor),
-      sent_to_provider: toNullableString(form.sent_to_provider),
+      sent_to_subcontractor: toNullableString(form.sent_to_subcontractor),
       sent_to_date: toNullableString(form.sent_to_date),
       approvers: toNullableString(form.approvers),
       approval_status: toNullableString(form.approval_status),
@@ -247,9 +246,8 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     setEditingId(null)
     setForm(emptyForm)
     setProjectSearch('')
-    setSentToAorInput('')
-    setSentToEorInput('')
-    setSentToProviderInput('')
+    setSelectedProjectEorOption('')
+    setSentToSubcontractorInput('')
     setApproverInput('')
     setNoteInput('')
     setSelectedEorType('Civil EOR')
@@ -268,7 +266,8 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
               onBlur={() => setTimeout(() => setShowProjectSuggestions(false), 120)}
               onChange={(e) => {
                 setProjectSearch(e.target.value)
-                setForm((p) => ({ ...p, project_id: '' }))
+                setForm((p) => ({ ...p, project_id: '', sent_to_aor: '', sent_to_eor: '' }))
+                setSelectedProjectEorOption('')
                 setShowProjectSuggestions(true)
               }}
               placeholder="Type project name"
@@ -283,7 +282,8 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                       type="button"
                       onMouseDown={() => {
                         setProjectSearch(project.project_name)
-                        setForm((p) => ({ ...p, project_id: project.project_id }))
+                        setForm((p) => ({ ...p, project_id: project.project_id, sent_to_aor: '', sent_to_eor: '' }))
+                        setSelectedProjectEorOption('')
                         setShowProjectSuggestions(false)
                       }}
                       className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
@@ -333,11 +333,10 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             ))}
           </select>
         </label>
-        <label className="text-sm lg:col-span-2">Description
-          <textarea
-            value={form.description ?? ''}
-            onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-            rows={4}
+        <label className="text-sm lg:col-span-2">Subject
+          <input
+            value={form.subject ?? ''}
+            onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))}
             className="mt-1 w-full rounded border px-2 py-2"
           />
         </label>
@@ -345,54 +344,17 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
           <p className="font-medium text-slate-700">Sent To</p>
           <div className="mt-2">
             <label className="text-xs text-slate-600">AOR</label>
-            <div className="relative mt-1">
-              <input
-                value={sentToAorInput}
-                onFocus={() => setShowAorSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowAorSuggestions(false), 120)}
-                onChange={(e) => {
-                  setSentToAorInput(e.target.value)
-                  setForm((p) => ({ ...p, sent_to_aor: e.target.value }))
-                  setShowAorSuggestions(true)
-                }}
-                placeholder="Search AOR"
-                className="w-full rounded border px-2 py-2"
-              />
-              {showAorSuggestions ? (
-                <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-md">
-                  {sentToAorInput.trim().length < 1 ? null : filteredAors.length > 0 ? (
-                    filteredAors.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onMouseDown={() => {
-                          setSentToAorInput(item.name)
-                          setForm((p) => ({ ...p, sent_to_aor: item.name, sent_to_date: p.sent_to_date || todayIsoDate() }))
-                          setShowAorSuggestions(false)
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                      >
-                        {item.name}
-                      </button>
-                    ))
-                  ) : (
-                    <p className="px-3 py-2 text-sm text-slate-500">No matches</p>
-                  )}
-                </div>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const trimmed = sentToAorInput.trim()
-                if (!trimmed) return
-                setForm((p) => ({ ...p, sent_to_aor: trimmed, sent_to_date: p.sent_to_date || todayIsoDate() }))
-                setShowAorSuggestions(false)
+            <select
+              value={form.sent_to_aor ?? ''}
+              onChange={(e) => {
+                const nextValue = e.target.value
+                setForm((p) => ({ ...p, sent_to_aor: nextValue, sent_to_date: nextValue ? p.sent_to_date || todayIsoDate() : p.sent_to_date }))
               }}
-              className="mt-2 rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
+              className="mt-1 w-full rounded border px-2 py-2"
             >
-              Add AOR
-            </button>
+              <option value="">Select AOR from project</option>
+              {projectAorOption ? <option value={projectAorOption}>{projectAorOption}</option> : null}
+            </select>
             {form.sent_to_aor ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
@@ -419,50 +381,23 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
-            <div className="relative mt-2">
-              <input
-                value={sentToEorInput}
-                onFocus={() => setShowEorSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowEorSuggestions(false), 120)}
-                onChange={(e) => {
-                  setSentToEorInput(e.target.value)
-                  setShowEorSuggestions(true)
-                }}
-                placeholder={`Search ${selectedEorType}`}
-                className="w-full rounded border px-2 py-2"
-              />
-              {showEorSuggestions ? (
-                <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-md">
-                  {sentToEorInput.trim().length < 1 ? null : filteredEors.length > 0 ? (
-                    filteredEors.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onMouseDown={() => {
-                          setSentToEorInput(item.name)
-                          setShowEorSuggestions(false)
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                      >
-                        {item.name}
-                      </button>
-                    ))
-                  ) : (
-                    <p className="px-3 py-2 text-sm text-slate-500">No matches</p>
-                  )}
-                </div>
-              ) : null}
-            </div>
+            <select
+              value={selectedProjectEorOption}
+              onChange={(e) => setSelectedProjectEorOption(e.target.value)}
+              className="mt-2 w-full rounded border px-2 py-2"
+            >
+              <option value="">Select EOR from project</option>
+              {filteredProjectEorOptions.map((item) => (
+                <option key={item.raw} value={item.raw}>{item.raw}</option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={() => {
-                const trimmed = sentToEorInput.trim()
-                if (!trimmed) return
-                const formatted = `${selectedEorType}: ${trimmed}`
-                const next = addUniqueMultiValue(form.sent_to_eor, formatted)
+                if (!selectedProjectEorOption) return
+                const next = addUniqueMultiValue(form.sent_to_eor, selectedProjectEorOption)
                 setForm((p) => ({ ...p, sent_to_eor: next, sent_to_date: p.sent_to_date || todayIsoDate() }))
-                setSentToEorInput('')
-                setShowEorSuggestions(false)
+                setSelectedProjectEorOption('')
               }}
               className="mt-2 rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
             >
@@ -486,31 +421,31 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             ) : null}
           </div>
           <div className="mt-3">
-            <label className="text-xs text-slate-600">Provider</label>
+            <label className="text-xs text-slate-600">Subcontractor</label>
             <div className="relative mt-1">
               <input
-                value={sentToProviderInput}
-                onFocus={() => setShowProviderSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowProviderSuggestions(false), 120)}
+                value={sentToSubcontractorInput}
+                onFocus={() => setShowSubcontractorSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSubcontractorSuggestions(false), 120)}
                 onChange={(e) => {
-                  setSentToProviderInput(e.target.value)
-                  setForm((p) => ({ ...p, sent_to_provider: e.target.value }))
-                  setShowProviderSuggestions(true)
+                  setSentToSubcontractorInput(e.target.value)
+                  setForm((p) => ({ ...p, sent_to_subcontractor: e.target.value }))
+                  setShowSubcontractorSuggestions(true)
                 }}
-                placeholder="Search Provider"
+                placeholder="Search Subcontractor"
                 className="w-full rounded border px-2 py-2"
               />
-              {showProviderSuggestions ? (
+              {showSubcontractorSuggestions ? (
                 <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-md">
-                  {sentToProviderInput.trim().length < 1 ? null : filteredProviders.length > 0 ? (
-                    filteredProviders.map((item) => (
+                  {sentToSubcontractorInput.trim().length < 1 ? null : filteredSubcontractors.length > 0 ? (
+                    filteredSubcontractors.map((item) => (
                       <button
                         key={item.id}
                         type="button"
                         onMouseDown={() => {
-                          setSentToProviderInput(item.name)
-                          setForm((p) => ({ ...p, sent_to_provider: item.name }))
-                          setShowProviderSuggestions(false)
+                          setSentToSubcontractorInput(item.name)
+                          setForm((p) => ({ ...p, sent_to_subcontractor: item.name }))
+                          setShowSubcontractorSuggestions(false)
                         }}
                         className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                       >
@@ -527,30 +462,30 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
               <button
                 type="button"
                 onClick={() => {
-                  const trimmed = sentToProviderInput.trim()
+                  const trimmed = sentToSubcontractorInput.trim()
                   if (!trimmed) return
-                  setForm((p) => ({ ...p, sent_to_provider: trimmed }))
-                  setShowProviderSuggestions(false)
+                  setForm((p) => ({ ...p, sent_to_subcontractor: trimmed }))
+                  setShowSubcontractorSuggestions(false)
                 }}
                 className="rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
               >
-                Add Provider
+                Add Subcontractor
               </button>
               <button
                 type="button"
-                onClick={() => setShowProviderModal(true)}
+                onClick={() => setShowSubcontractorModal(true)}
                 className="rounded bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
               >
-                Add Provider to DB
+                Add Subcontractor to DB
               </button>
             </div>
-            {form.sent_to_provider ? (
+            {form.sent_to_subcontractor ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                  {form.sent_to_provider}
+                  {form.sent_to_subcontractor}
                   <button
                     type="button"
-                    onClick={() => setForm((p) => ({ ...p, sent_to_provider: '' }))}
+                    onClick={() => setForm((p) => ({ ...p, sent_to_subcontractor: '' }))}
                     className="rounded-full bg-slate-200 px-1 text-[10px] text-slate-600"
                   >
                     x
@@ -611,9 +546,6 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
         <label className="text-sm">Due Date
           <input type="date" value={form.due_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
         </label>
-        <label className="text-sm">Start Date
-          <input type="date" value={form.start_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, start_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
-        </label>
         <div className="text-sm lg:col-span-2">
           <label className="text-sm">Notes</label>
           <textarea
@@ -661,9 +593,8 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 setEditingId(null)
                 setForm(emptyForm)
                 setProjectSearch('')
-                setSentToAorInput('')
-                setSentToEorInput('')
-                setSentToProviderInput('')
+                setSelectedProjectEorOption('')
+                setSentToSubcontractorInput('')
                 setApproverInput('')
                 setNoteInput('')
                 setSelectedEorType('Civil EOR')
@@ -694,9 +625,8 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                         setEditingId(item.id)
                         setForm({ ...item })
                         setProjectSearch(item.project_id ? (projectNameById[item.project_id] ?? '') : '')
-                        setSentToAorInput(item.sent_to_aor ?? '')
-                        setSentToEorInput('')
-                        setSentToProviderInput(item.sent_to_provider ?? '')
+                        setSelectedProjectEorOption('')
+                        setSentToSubcontractorInput(item.sent_to_subcontractor ?? '')
                         setApproverInput('')
                         setNoteInput('')
                         setSelectedEorType('Civil EOR')
@@ -724,32 +654,32 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
         </table>
       </div>
 
-      {showProviderModal ? (
+      {showSubcontractorModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Add Provider</h3>
+            <h3 className="text-lg font-semibold text-slate-900">Add Subcontractor</h3>
             <label className="mt-3 block text-sm text-slate-700">
-              Provider Name
+              Subcontractor Name
               <input
                 type="text"
-                value={newProviderName}
-                onChange={(e) => setNewProviderName(e.target.value)}
+                value={newSubcontractorName}
+                onChange={(e) => setNewSubcontractorName(e.target.value)}
                 className="mt-1 w-full rounded border px-3 py-2"
               />
             </label>
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={handleCreateProvider}
+                onClick={handleCreateSubcontractor}
                 className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
               >
-                Save Provider
+                Save Subcontractor
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setShowProviderModal(false)
-                  setNewProviderName('')
+                  setShowSubcontractorModal(false)
+                  setNewSubcontractorName('')
                 }}
                 className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
               >
@@ -762,3 +692,4 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     </section>
   )
 }
+

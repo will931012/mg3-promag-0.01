@@ -32,7 +32,7 @@ export type EorRecord = {
   name: string
 }
 
-export type ProviderRecord = {
+export type SubcontractorRecord = {
   id: number
   name: string
 }
@@ -42,13 +42,12 @@ export type SubmittalRecord = {
   project_id: string | null
   division_csi: string | null
   submittal_number: string | null
-  description: string | null
+  subject: string | null
   contractor: string | null
-  start_date: string | null
   date_received: string | null
   sent_to_aor: string | null
   sent_to_eor: string | null
-  sent_to_provider: string | null
+  sent_to_subcontractor: string | null
   sent_to_date: string | null
   approvers: string | null
   approval_status: string | null
@@ -71,7 +70,7 @@ export type RfiRecord = {
   date_sent: string | null
   sent_to_aor: string | null
   sent_to_eor: string | null
-  sent_to_provider: string | null
+  sent_to_subcontractor: string | null
   sent_to_date: string | null
   response_due: string | null
   date_answered: string | null

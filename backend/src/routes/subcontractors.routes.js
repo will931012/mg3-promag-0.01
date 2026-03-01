@@ -6,12 +6,12 @@ const router = Router();
 router.get("/", async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      "SELECT id, name FROM providers ORDER BY name ASC"
+      "SELECT id, name FROM subcontractors ORDER BY name ASC"
     );
     return res.json(rows);
   } catch (error) {
     if (error?.code === "42P01") return res.json([]);
-    return res.status(500).json({ detail: "Failed to load providers." });
+    return res.status(500).json({ detail: "Failed to load subcontractors." });
   }
 });
 
@@ -21,15 +21,15 @@ router.post("/", async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      "INSERT INTO providers (name) VALUES ($1) RETURNING id, name",
+      "INSERT INTO subcontractors (name) VALUES ($1) RETURNING id, name",
       [name]
     );
     return res.status(201).json(rows[0]);
   } catch (error) {
     if (error?.code === "23505") {
-      return res.status(409).json({ detail: "Provider already exists." });
+      return res.status(409).json({ detail: "Subcontractor already exists." });
     }
-    return res.status(500).json({ detail: "Failed to create provider." });
+    return res.status(500).json({ detail: "Failed to create subcontractor." });
   }
 });
 

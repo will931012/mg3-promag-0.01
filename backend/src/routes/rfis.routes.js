@@ -14,7 +14,7 @@ const selectRfiSql = `
     date_sent,
     sent_to_aor,
     sent_to_eor,
-    sent_to_provider,
+    sent_to_subcontractor,
     sent_to_date,
     response_due,
     date_answered,
@@ -48,7 +48,7 @@ router.post("/", async (req, res) => {
     date_sent,
     sent_to_aor,
     sent_to_eor,
-    sent_to_provider,
+    sent_to_subcontractor,
     sent_to_date,
     response_due,
     date_answered,
@@ -61,7 +61,7 @@ router.post("/", async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO rfi_tracker (
         project_id, rfi_number, subject, description, from_contractor, date_sent, sent_to_aor, sent_to_eor,
-        sent_to_provider, sent_to_date, response_due, date_answered, status, responsible, notes
+        sent_to_subcontractor, sent_to_date, response_due, date_answered, status, responsible, notes
       )
       VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,
@@ -78,7 +78,7 @@ router.post("/", async (req, res) => {
         date_sent,
         sent_to_aor,
         sent_to_eor,
-        sent_to_provider,
+        sent_to_subcontractor,
         sent_to_date,
         response_due,
         date_answered,
@@ -98,7 +98,7 @@ router.post("/", async (req, res) => {
         date_sent,
         sent_to_aor,
         sent_to_eor,
-        sent_to_provider,
+        sent_to_subcontractor,
         sent_to_date,
         response_due,
         date_answered,
@@ -126,7 +126,7 @@ router.put("/:id", async (req, res) => {
     date_sent,
     sent_to_aor,
     sent_to_eor,
-    sent_to_provider,
+    sent_to_subcontractor,
     sent_to_date,
     response_due,
     date_answered,
@@ -146,7 +146,7 @@ router.put("/:id", async (req, res) => {
            date_sent = $7,
            sent_to_aor = $8,
            sent_to_eor = $9,
-           sent_to_provider = $10,
+           sent_to_subcontractor = $10,
            sent_to_date = CASE
              WHEN ($8 IS DISTINCT FROM sent_to_aor OR $9 IS DISTINCT FROM sent_to_eor) THEN COALESCE($11, CURRENT_DATE)
              ELSE COALESCE($11, sent_to_date)
@@ -170,7 +170,7 @@ router.put("/:id", async (req, res) => {
          date_sent,
          sent_to_aor,
          sent_to_eor,
-         sent_to_provider,
+         sent_to_subcontractor,
          sent_to_date,
          response_due,         
          date_answered,
@@ -191,7 +191,7 @@ router.put("/:id", async (req, res) => {
         date_sent,
         sent_to_aor,
         sent_to_eor,
-        sent_to_provider,
+        sent_to_subcontractor,
         sent_to_date,
         response_due,
         date_answered,
@@ -220,3 +220,4 @@ router.delete("/:id", async (req, res) => {
 });
 
 export default router;
+

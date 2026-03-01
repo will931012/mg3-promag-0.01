@@ -6,13 +6,12 @@ CREATE TABLE IF NOT EXISTS submittal_tracker (
   project_id VARCHAR(64),
   division_csi VARCHAR(100),
   submittal_number VARCHAR(100),
-  description TEXT,
+  subject TEXT,
   contractor VARCHAR(255),
-  start_date DATE,
   date_received DATE,
   sent_to_aor VARCHAR(255),
   sent_to_eor TEXT,
-  sent_to_provider VARCHAR(255),
+  sent_to_subcontractor VARCHAR(255),
   sent_to_date DATE,
   approvers TEXT,
   approval_status VARCHAR(100),
@@ -36,3 +35,4 @@ main().catch(async (error) => {
   await pool.end();
   process.exit(1);
 });
+

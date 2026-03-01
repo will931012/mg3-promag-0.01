@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS rfi_tracker (
   date_sent DATE,
   sent_to_aor VARCHAR(255),
   sent_to_eor TEXT,
-  sent_to_provider VARCHAR(255),
+  sent_to_subcontractor VARCHAR(255),
   sent_to_date DATE,
   response_due DATE,
   date_answered DATE,
@@ -33,3 +33,4 @@ main().catch(async (error) => {
   await pool.end();
   process.exit(1);
 });
+

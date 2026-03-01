@@ -106,14 +106,11 @@ export default function DashboardPanel({ summary, projects, submittals, rfis }: 
   return (
     <section className="mt-6 space-y-5">
       <div className="rounded-3xl border border-[#d8e2ef] bg-[linear-gradient(140deg,#ffffff_0%,#f4f8fd_100%)] p-6 shadow-soft">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#4b6a87]">Executive Dashboard</p>
             <h2 className="mt-2 text-3xl font-semibold text-[#1d3551]">Program Performance Snapshot</h2>
           </div>
-          <span className="rounded-full border border-[#c6d7ec] bg-white px-3 py-1 text-xs font-semibold text-[#36597b]">
-            Updated with live workspace data
-          </span>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
