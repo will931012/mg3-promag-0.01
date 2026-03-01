@@ -97,6 +97,7 @@ const emptyForm: Omit<SubmittalRecord, 'id'> = {
   sent_to_aor: '',
   sent_to_eor: '',
   sent_to_date: '',
+  approved_by: '',
   approval_status: '',
   revision: '',
   due_date: '',
@@ -157,6 +158,12 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     if (query.length < 1) return []
     return sortedProjects.filter((project) => project.project_name.toLowerCase().includes(query)).slice(0, 8)
   }, [projectSearch, sortedProjects])
+  const approvedByOptions = useMemo(() => {
+    const options: string[] = []
+    if (form.sent_to_aor?.trim()) options.push(form.sent_to_aor.trim())
+    options.push(...splitMultiValues(form.sent_to_eor))
+    return Array.from(new Set(options))
+  }, [form.sent_to_aor, form.sent_to_eor])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -173,6 +180,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       sent_to_aor: toNullableString(form.sent_to_aor),
       sent_to_eor: toNullableString(form.sent_to_eor),
       sent_to_date: toNullableString(form.sent_to_date),
+      approved_by: toNullableString(form.approved_by),
       approval_status: toNullableString(form.approval_status),
       revision: toNullableString(form.revision),
       due_date: toNullableString(form.due_date),
@@ -282,7 +290,6 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
         </label>
         <div className="text-sm lg:col-span-2">
           <p className="font-medium text-slate-700">Sent To</p>
-          <p className="mt-1 text-xs text-slate-500">You can send to one AOR and multiple EOR.</p>
           <div className="mt-2">
             <label className="text-xs text-slate-600">AOR</label>
             <div className="relative mt-1">
@@ -321,6 +328,32 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 </div>
               ) : null}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                const trimmed = sentToAorInput.trim()
+                if (!trimmed) return
+                setForm((p) => ({ ...p, sent_to_aor: trimmed, sent_to_date: p.sent_to_date || todayIsoDate() }))
+                setShowAorSuggestions(false)
+              }}
+              className="mt-2 rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
+            >
+              Add AOR
+            </button>
+            {form.sent_to_aor ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                  {form.sent_to_aor}
+                  <button
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, sent_to_aor: '' }))}
+                    className="rounded-full bg-slate-200 px-1 text-[10px] text-slate-600"
+                  >
+                    x
+                  </button>
+                </span>
+              </div>
+            ) : null}
           </div>
           <div className="mt-3">
             <label className="text-xs text-slate-600">EOR</label>
@@ -408,13 +441,27 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             className="mt-1 w-full rounded border px-2 py-2"
           />
         </label>
+        <label className="text-sm">Approved By
+          <select
+            value={form.approved_by ?? ''}
+            onChange={(e) => setForm((p) => ({ ...p, approved_by: e.target.value }))}
+            className="mt-1 w-full rounded border px-2 py-2"
+          >
+            <option value="">Select approver</option>
+            {form.approved_by && !approvedByOptions.includes(form.approved_by) ? (
+              <option value={form.approved_by}>{form.approved_by}</option>
+            ) : null}
+            {approvedByOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </label>
         <label className="text-sm">Due Date
           <input type="date" value={form.due_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
         </label>
         <label className="text-sm">Start Date
           <input type="date" value={form.start_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, start_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
         </label>
-        <p className="text-xs text-slate-500 self-end">Days Pending is calculated automatically from creation date.</p>
         <div className="flex gap-2 lg:col-span-4">
           <button type="submit" className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white">
             {editingId ? 'Update Submittal' : 'Create Submittal'}

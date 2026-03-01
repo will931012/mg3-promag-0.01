@@ -18,6 +18,7 @@ router.get("/", async (_req, res) => {
         sent_to_aor,
         sent_to_eor,
         sent_to_date,
+        approved_by,
         approval_status,
         revision,
         due_date,
@@ -48,6 +49,7 @@ router.post("/", async (req, res) => {
     sent_to_aor,
     sent_to_eor,
     sent_to_date,
+    approved_by,
     approval_status,
     revision,
     due_date,
@@ -61,9 +63,9 @@ router.post("/", async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO submittal_tracker (
         project_id, division_csi, submittal_number, description, contractor, start_date, date_received, sent_to_aor, sent_to_eor,
-        sent_to_date, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
+        sent_to_date, approved_by, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN ($8 IS NOT NULL OR $9 IS NOT NULL) THEN COALESCE($10, CURRENT_DATE) ELSE $10 END,$11,$12,$13,$14,$15,$16,$17)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN ($8 IS NOT NULL OR $9 IS NOT NULL) THEN COALESCE($10, CURRENT_DATE) ELSE $10 END,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING
         id,
         project_id,
@@ -76,6 +78,7 @@ router.post("/", async (req, res) => {
         sent_to_aor,
         sent_to_eor,
         sent_to_date,
+        approved_by,
         approval_status,
         revision,
         due_date,
@@ -86,7 +89,7 @@ router.post("/", async (req, res) => {
         notes`,
       [
         project_id, division_csi, submittal_number, description, contractor, start_date, date_received, sent_to_aor, sent_to_eor,
-        sent_to_date, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
+        sent_to_date, approved_by, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
       ]
     );
     return res.status(201).json(rows[0]);
@@ -110,6 +113,7 @@ router.put("/:id", async (req, res) => {
     sent_to_aor,
     sent_to_eor,
     sent_to_date,
+    approved_by,
     approval_status,
     revision,
     due_date,
@@ -135,13 +139,14 @@ router.put("/:id", async (req, res) => {
              WHEN ($9 IS DISTINCT FROM sent_to_aor OR $10 IS DISTINCT FROM sent_to_eor) THEN COALESCE($11, CURRENT_DATE)
              ELSE COALESCE($11, sent_to_date)
            END,
-           approval_status = $12,
-           revision = $13,
-           due_date = $14,
-           overall_status = $15,
-           responsible = $16,
-           workflow_stage = $17,
-           notes = $18
+           approved_by = $12,
+           approval_status = $13,
+           revision = $14,
+           due_date = $15,
+           overall_status = $16,
+           responsible = $17,
+           workflow_stage = $18,
+           notes = $19
        WHERE id = $1
        RETURNING
          id,
@@ -155,6 +160,7 @@ router.put("/:id", async (req, res) => {
          sent_to_aor,
          sent_to_eor,
          sent_to_date,
+         approved_by,
          approval_status,
          revision,
          due_date,
@@ -165,7 +171,7 @@ router.put("/:id", async (req, res) => {
          notes`,
       [
         id, project_id, division_csi, submittal_number, description, contractor, start_date, date_received, sent_to_aor, sent_to_eor,
-        sent_to_date, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
+        sent_to_date, approved_by, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
       ]
     );
     if (!rows[0]) return res.status(404).json({ detail: "Submittal not found." });

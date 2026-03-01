@@ -46,6 +46,7 @@ export type SubmittalRecord = {
   sent_to_aor: string | null
   sent_to_eor: string | null
   sent_to_date: string | null
+  approved_by: string | null
   approval_status: string | null
   revision: string | null
   due_date: string | null

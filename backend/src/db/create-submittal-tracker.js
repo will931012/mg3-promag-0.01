@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS submittal_tracker (
   sent_to_aor VARCHAR(255),
   sent_to_eor TEXT,
   sent_to_date DATE,
+  approved_by VARCHAR(255),
   approval_status VARCHAR(100),
   revision VARCHAR(50),
   due_date DATE,
