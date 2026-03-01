@@ -30,7 +30,6 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
   const [form, setForm] = useState<ProjectForm>(emptyProjectForm)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [aors, setAors] = useState<AorRecord[]>([])
-  const [aorSearch, setAorSearch] = useState('')
   const [showAorModal, setShowAorModal] = useState(false)
   const [newAorName, setNewAorName] = useState('')
 
@@ -50,11 +49,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     return () => { mounted = false }
   }, [token])
 
-  const filteredAors = useMemo(() => {
-    const query = aorSearch.trim().toLowerCase()
-    if (!query) return aors
-    return aors.filter((item) => item.name.toLowerCase().includes(query))
-  }, [aors, aorSearch])
+  const sortedAors = useMemo(() => [...aors].sort((a, b) => a.name.localeCompare(b.name)), [aors])
 
   const handleCreateAor = async () => {
     const name = newAorName.trim()
@@ -65,7 +60,6 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
 
     await loadAors()
     setForm((prev) => ({ ...prev, aor: createdAor.name }))
-    setAorSearch('')
     setNewAorName('')
     setShowAorModal(false)
     setMessage('AOR created.')
@@ -144,24 +138,17 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
               <>
                 <input
                   type="text"
-                  value={aorSearch}
-                  onChange={(e) => setAorSearch(e.target.value)}
-                  placeholder="Search AOR"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-                />
-                <select
+                  list="aor-options"
                   value={String(form[key as keyof ProjectForm] ?? '')}
                   onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                  className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2"
-                >
-                  <option value="">Select AOR</option>
-                  {filteredAors.map((item) => (
-                    <option key={item.id} value={item.name}>{item.name}</option>
+                  placeholder="Search or select AOR"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                />
+                <datalist id="aor-options">
+                  {sortedAors.map((item) => (
+                    <option key={item.id} value={item.name} />
                   ))}
-                </select>
-                {aorSearch && filteredAors.length === 0 ? (
-                  <p className="mt-1 text-xs text-slate-500">No AOR results for "{aorSearch}"</p>
-                ) : null}
+                </datalist>
                 <button
                   type="button"
                   onClick={() => setShowAorModal(true)}
