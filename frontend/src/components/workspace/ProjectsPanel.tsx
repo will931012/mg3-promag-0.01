@@ -16,6 +16,9 @@ type ProjectsPanelProps = {
 type ProjectForm = Omit<ProjectRecord, 'project_id'>
 const defaultEorType: EorType = 'Civil EOR'
 const MULTI_VALUE_SEPARATOR = ' | '
+const PROJECT_STATUS_OPTIONS = ['Preliminary', 'Under Construction', 'Substantial Completion'] as const
+const PROJECT_PRIORITY_OPTIONS = ['High', 'Medium', 'Low'] as const
+const NOTES_SEPARATOR = '\n\n'
 
 function splitMultiValues(value: string | null): string[] {
   return String(value || '')
@@ -37,13 +40,31 @@ function removeMultiValue(current: string | null, target: string): string {
   return next.join(MULTI_VALUE_SEPARATOR)
 }
 
+function splitNotes(value: string | null): string[] {
+  return String(value || '')
+    .split(NOTES_SEPARATOR)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function addNote(current: string | null, nextValue: string): string {
+  const trimmed = nextValue.trim()
+  if (!trimmed) return String(current || '')
+  const notes = splitNotes(current)
+  return [...notes, trimmed].join(NOTES_SEPARATOR)
+}
+
+function removeNote(current: string | null, noteToRemove: string): string {
+  const notes = splitNotes(current).filter((item) => item !== noteToRemove)
+  return notes.join(NOTES_SEPARATOR)
+}
+
 const emptyProjectForm: ProjectForm = {
   project_name: '',
   address: '',
   developer: '',
   aor: '',
   eor: '',
-  start_date: '',
   end_date: '',
   status: '',
   priority: '',
@@ -65,6 +86,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
   const [newAorName, setNewAorName] = useState('')
   const [newEorName, setNewEorName] = useState('')
   const [newEorType, setNewEorType] = useState<EorType>(defaultEorType)
+  const [noteInput, setNoteInput] = useState('')
   const [addCreatedAorToProject, setAddCreatedAorToProject] = useState(true)
   const [addCreatedEorToProject, setAddCreatedEorToProject] = useState(true)
 
@@ -150,7 +172,6 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
         developer: toNullableString(form.developer),
         aor: toNullableString(form.aor),
         eor: toNullableString(form.eor),
-        start_date: toNullableString(form.start_date),
         end_date: toNullableString(form.end_date),
         status: toNullableString(form.status),
         priority: toNullableString(form.priority),
@@ -167,7 +188,6 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
         developer: toNullableString(form.developer),
         aor: toNullableString(form.aor),
         eor: toNullableString(form.eor),
-        start_date: toNullableString(form.start_date),
         end_date: toNullableString(form.end_date),
         status: toNullableString(form.status),
         priority: toNullableString(form.priority),
@@ -181,6 +201,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     setSelectedEorType(defaultEorType)
     setAorInput('')
     setEorInput('')
+    setNoteInput('')
     await refreshWorkspace(token)
   }
 
@@ -194,7 +215,6 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
           ['Developer', 'developer', 'text'],
           ['AOR', 'aor', 'text'],
           ['EOR', 'eor', 'text'],
-          ['Start Date', 'start_date', 'date'],
           ['End Date', 'end_date', 'date'],
           ['Status', 'status', 'text'],
           ['Priority', 'priority', 'text'],
@@ -259,6 +279,65 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                 >
                   Add AOR to DB
                 </button>
+              </>
+            ) : key === 'status' ? (
+              <select
+                value={String(form[key as keyof ProjectForm] ?? '')}
+                onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              >
+                <option value="">Select status</option>
+                {PROJECT_STATUS_OPTIONS.map((statusOption) => (
+                  <option key={statusOption} value={statusOption}>{statusOption}</option>
+                ))}
+              </select>
+            ) : key === 'priority' ? (
+              <select
+                value={String(form[key as keyof ProjectForm] ?? '')}
+                onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              >
+                <option value="">Select priority</option>
+                {PROJECT_PRIORITY_OPTIONS.map((priorityOption) => (
+                  <option key={priorityOption} value={priorityOption}>{priorityOption}</option>
+                ))}
+              </select>
+            ) : key === 'notes' ? (
+              <>
+                <textarea
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="Write note"
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm((prev) => ({ ...prev, notes: addNote(prev.notes, noteInput) }))
+                    setNoteInput('')
+                  }}
+                  className="mt-2 rounded-lg bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Add Note
+                </button>
+                {form.notes ? (
+                  <div className="mt-2 space-y-2">
+                    {splitNotes(form.notes).map((note) => (
+                      <div key={note} className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <p className="text-xs text-slate-700">{note}</p>
+                        <button
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, notes: removeNote(prev.notes, note) }))}
+                          className="rounded bg-slate-200 px-2 py-1 text-[10px] text-slate-600"
+                          aria-label="Remove note"
+                        >
+                          x
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </>
             ) : key === 'eor' ? (
               <>
@@ -368,6 +447,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                 setSelectedEorType(defaultEorType)
                 setAorInput('')
                 setEorInput('')
+                setNoteInput('')
               }}
               className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
             >
@@ -405,7 +485,6 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                           developer: item.developer ?? '',
                           aor: item.aor ?? '',
                           eor: item.eor ?? '',
-                          start_date: item.start_date ?? '',
                           end_date: item.end_date ?? '',
                           status: item.status ?? '',
                           priority: item.priority ?? '',
@@ -414,6 +493,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                         setSelectedEorType(defaultEorType)
                         setAorInput(item.aor ?? '')
                         setEorInput('')
+                        setNoteInput('')
                       }}
                       className="rounded bg-slate-200 px-2 py-1 text-xs"
                     >

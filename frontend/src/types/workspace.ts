@@ -17,7 +17,6 @@ export type ProjectRecord = {
   developer: string | null
   aor: string | null
   eor: string | null
-  start_date: string | null
   end_date: string | null
   status: string | null
   priority: string | null
