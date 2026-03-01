@@ -11,8 +11,6 @@ export default function DashboardPanel({ summary }: DashboardPanelProps) {
     ['Submittals LATE', summary.submittals_late],
     ['RFIs OPEN', summary.rfis_open],
     ['RFIs Overdue (Open)', summary.rfis_overdue_open],
-    ['Tasks Open/In Progress', summary.tasks_open_in_progress],
-    ['Tasks Overdue', summary.tasks_overdue],
   ] as const
 
   return (

@@ -6,7 +6,6 @@ import LoginPage from '../pages/LoginPage'
 import WorkspacePage from '../pages/WorkspacePage'
 import { getCurrentUser, getHealth, login, logout } from '../services/authService'
 import {
-  fetchActionItems,
   fetchProjects,
   fetchRfis,
   fetchSubmittals,
@@ -14,7 +13,7 @@ import {
   fetchUsers,
 } from '../services/workspaceService'
 import type { AuthUser } from '../types/auth'
-import type { ActionItemRecord, DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
+import type { DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
 
 const emptySummary: DashboardSummary = {
   active_projects: 0,
@@ -22,8 +21,6 @@ const emptySummary: DashboardSummary = {
   submittals_late: 0,
   rfis_open: 0,
   rfis_overdue_open: 0,
-  tasks_open_in_progress: 0,
-  tasks_overdue: 0,
 }
 
 export default function App() {
@@ -33,7 +30,6 @@ export default function App() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [submittals, setSubmittals] = useState<SubmittalRecord[]>([])
   const [rfis, setRfis] = useState<RfiRecord[]>([])
-  const [actionItems, setActionItems] = useState<ActionItemRecord[]>([])
   const [users, setUsers] = useState<AuthUser[]>([])
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -44,19 +40,17 @@ export default function App() {
   const [message, setMessage] = useState('')
 
   const refreshWorkspace = async (authToken: string) => {
-    const [nextSummary, nextProjects, nextSubmittals, nextRfis, nextActions, nextUsers] = await Promise.all([
+    const [nextSummary, nextProjects, nextSubmittals, nextRfis, nextUsers] = await Promise.all([
       fetchSummary(authToken),
       fetchProjects(authToken),
       fetchSubmittals(authToken),
       fetchRfis(authToken),
-      fetchActionItems(authToken),
       fetchUsers(authToken),
     ])
     setSummary(nextSummary)
     setProjects(nextProjects)
     setSubmittals(nextSubmittals)
     setRfis(nextRfis)
-    setActionItems(nextActions)
     setUsers(nextUsers)
   }
 
@@ -131,7 +125,6 @@ export default function App() {
     setProjects([])
     setSubmittals([])
     setRfis([])
-    setActionItems([])
     setUsers([])
     setSummary(emptySummary)
   }
@@ -164,7 +157,6 @@ export default function App() {
       projects={projects}
       submittals={submittals}
       rfis={rfis}
-      actionItems={actionItems}
       users={users}
       message={message}
       setMessage={setMessage}

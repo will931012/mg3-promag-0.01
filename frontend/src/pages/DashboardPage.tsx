@@ -18,8 +18,6 @@ const trackerRows = (summary: DashboardSummary) => [
   { label: 'Submittals LATE', value: summary.submittals_late },
   { label: 'RFIs OPEN', value: summary.rfis_open },
   { label: 'RFIs Overdue (Open)', value: summary.rfis_overdue_open },
-  { label: 'Tasks Open/In Progress', value: summary.tasks_open_in_progress },
-  { label: 'Tasks Overdue', value: summary.tasks_overdue },
 ]
 
 export default function DashboardPage({ user, health, summary, projects, onLogout }: DashboardPageProps) {

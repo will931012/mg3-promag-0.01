@@ -17,8 +17,7 @@
                     "db:seed:user":  "node src/db/seed-user.js",
                     "db:create:product_list":  "node src/db/create-product-list.js",
                     "db:create:submittal_tracker":  "node src/db/create-submittal-tracker.js",
-                    "db:create:rfi_tracker":  "node src/db/create-rfi-tracker.js",
-                    "db:create:action_items":  "node src/db/create-action-items.js"
+                    "db:create:rfi_tracker":  "node src/db/create-rfi-tracker.js"
                 },
     "dependencies":  {
                          "cors":  "^2.8.5",

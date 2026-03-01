@@ -44,39 +44,16 @@ rfi_counts AS (
         AND response_due < CURRENT_DATE
     )::int AS rfis_overdue_open
   FROM rfi_base
-),
-task_base AS (
-  SELECT
-    due_date,
-    COALESCE(NULLIF(TRIM(status), ''), 'open') AS status_text
-  FROM action_items
-),
-task_counts AS (
-  SELECT
-    COUNT(*) FILTER (
-      WHERE status_text ~* '(open|in progress|in-progress|pending)'
-         OR status_text !~* '^(done|completed|closed|cancelled)$'
-    )::int AS tasks_open_in_progress,
-    COUNT(*) FILTER (
-      WHERE (status_text ~* '(open|in progress|in-progress|pending)'
-         OR status_text !~* '^(done|completed|closed|cancelled)$')
-        AND due_date IS NOT NULL
-        AND due_date < CURRENT_DATE
-    )::int AS tasks_overdue
-  FROM task_base
 )
 SELECT
   p.active_projects,
   s.submittals_open,
   s.submittals_late,
   r.rfis_open,
-  r.rfis_overdue_open,
-  t.tasks_open_in_progress,
-  t.tasks_overdue
+  r.rfis_overdue_open
 FROM project_counts p
 CROSS JOIN submittal_counts s
-CROSS JOIN rfi_counts r
-CROSS JOIN task_counts t;
+CROSS JOIN rfi_counts r;
 `;
 
 router.get("/summary", async (_req, res) => {
@@ -87,9 +64,7 @@ router.get("/summary", async (_req, res) => {
       submittals_open: 0,
       submittals_late: 0,
       rfis_open: 0,
-      rfis_overdue_open: 0,
-      tasks_open_in_progress: 0,
-      tasks_overdue: 0
+      rfis_overdue_open: 0
     };
 
     res.json(summary);
@@ -100,9 +75,7 @@ router.get("/summary", async (_req, res) => {
         submittals_open: 0,
         submittals_late: 0,
         rfis_open: 0,
-        rfis_overdue_open: 0,
-        tasks_open_in_progress: 0,
-        tasks_overdue: 0
+        rfis_overdue_open: 0
       });
     }
     res.status(500).json({

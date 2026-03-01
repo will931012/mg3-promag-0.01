@@ -1,7 +1,7 @@
 import { requestJson } from './http'
 import type { EorType } from '../app/eorTypes'
 import type { AuthUser } from '../types/auth'
-import type { ActionItemRecord, AorRecord, DashboardSummary, EorRecord, ProjectRecord, ProviderRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
+import type { AorRecord, DashboardSummary, EorRecord, ProjectRecord, ProviderRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
 
 const emptySummary: DashboardSummary = {
   active_projects: 0,
@@ -9,8 +9,6 @@ const emptySummary: DashboardSummary = {
   submittals_late: 0,
   rfis_open: 0,
   rfis_overdue_open: 0,
-  tasks_open_in_progress: 0,
-  tasks_overdue: 0,
 }
 
 export async function fetchSummary(token: string): Promise<DashboardSummary> {
@@ -95,23 +93,6 @@ export async function updateRfi(token: string, id: number, payload: Omit<RfiReco
 
 export async function deleteRfi(token: string, id: number) {
   return requestJson<null>(`/rfis/${id}`, { token, method: 'DELETE' })
-}
-
-export async function fetchActionItems(token: string): Promise<ActionItemRecord[]> {
-  const res = await requestJson<ActionItemRecord[]>('/action-items', { token })
-  return res.ok && Array.isArray(res.data) ? res.data : []
-}
-
-export async function createActionItem(token: string, payload: Omit<ActionItemRecord, 'id'>) {
-  return requestJson<ActionItemRecord>('/action-items', { token, method: 'POST', body: payload })
-}
-
-export async function updateActionItem(token: string, id: number, payload: Omit<ActionItemRecord, 'id'>) {
-  return requestJson<ActionItemRecord>(`/action-items/${id}`, { token, method: 'PUT', body: payload })
-}
-
-export async function deleteActionItem(token: string, id: number) {
-  return requestJson<null>(`/action-items/${id}`, { token, method: 'DELETE' })
 }
 
 export async function fetchUsers(token: string): Promise<AuthUser[]> {

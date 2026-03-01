@@ -2,7 +2,6 @@ import cors from "cors";
 import express from "express";
 import morgan from "morgan";
 import { authRequired } from "./middleware/auth.js";
-import actionItemsRouter from "./routes/action-items.routes.js";
 import aorsRouter from "./routes/aors.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import dashboardRouter from "./routes/dashboard.routes.js";
@@ -72,6 +71,5 @@ app.use("/api/eors", authRequired, eorsRouter);
 app.use("/api/providers", authRequired, providersRouter);
 app.use("/api/submittals", authRequired, submittalsRouter);
 app.use("/api/rfis", authRequired, rfisRouter);
-app.use("/api/action-items", authRequired, actionItemsRouter);
 
 export default app;

@@ -6,8 +6,6 @@ export type DashboardSummary = {
   submittals_late: number
   rfis_open: number
   rfis_overdue_open: number
-  tasks_open_in_progress: number
-  tasks_overdue: number
 }
 
 export type ProjectRecord = {
@@ -80,19 +78,5 @@ export type RfiRecord = {
   status: string | null
   days_open: number | null
   responsible: string | null
-  notes: string | null
-}
-
-export type ActionItemRecord = {
-  id: number
-  project_id: string | null
-  task: string | null
-  description: string | null
-  assigned_to: string | null
-  start_date: string | null
-  due_date: string | null
-  status: string | null
-  priority: string | null
-  days_left: number | null
   notes: string | null
 }

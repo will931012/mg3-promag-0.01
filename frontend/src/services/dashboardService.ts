@@ -7,8 +7,6 @@ const emptySummary: DashboardSummary = {
   submittals_late: 0,
   rfis_open: 0,
   rfis_overdue_open: 0,
-  tasks_open_in_progress: 0,
-  tasks_overdue: 0,
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
