@@ -112,7 +112,8 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     const createdAor = res.data
     await loadAors()
     if (addCreatedAorToProject) {
-      setForm((prev) => ({ ...prev, aor: addUniqueMultiValue(prev.aor, createdAor.name) }))
+      setForm((prev) => ({ ...prev, aor: createdAor.name }))
+      setAorInput(createdAor.name)
     }
     setNewAorName('')
     setAorInput('')
@@ -222,6 +223,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                     onBlur={() => setTimeout(() => setShowAorSuggestions(false), 120)}
                     onChange={(e) => {
                       setAorInput(e.target.value)
+                      setForm((prev) => ({ ...prev, [key]: e.target.value }))
                       setShowAorSuggestions(true)
                     }}
                     placeholder="Search AOR"
@@ -236,6 +238,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                             type="button"
                             onMouseDown={() => {
                               setAorInput(item.name)
+                              setForm((prev) => ({ ...prev, [key]: item.name }))
                               setShowAorSuggestions(false)
                             }}
                             className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
@@ -251,40 +254,11 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    const next = addUniqueMultiValue(form.aor, aorInput)
-                    setForm((prev) => ({ ...prev, [key]: next }))
-                    setAorInput('')
-                    setShowAorSuggestions(false)
-                  }}
-                  className="mt-2 rounded-lg bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
-                >
-                  Add AOR to Project
-                </button>
-                <button
-                  type="button"
                   onClick={() => setShowAorModal(true)}
                   className="mt-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
                 >
                   Add AOR to DB
                 </button>
-                {form.aor ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {splitMultiValues(form.aor).map((item) => (
-                      <span key={item} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                        {item}
-                        <button
-                          type="button"
-                          onClick={() => setForm((prev) => ({ ...prev, aor: removeMultiValue(prev.aor, item) }))}
-                          className="rounded-full bg-slate-200 px-1 text-[10px] text-slate-600"
-                          aria-label={`Remove ${item}`}
-                        >
-                          x
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
               </>
             ) : key === 'eor' ? (
               <>
@@ -438,7 +412,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                           notes: item.notes ?? '',
                         })
                         setSelectedEorType(defaultEorType)
-                        setAorInput('')
+                        setAorInput(item.aor ?? '')
                         setEorInput('')
                       }}
                       className="rounded bg-slate-200 px-2 py-1 text-xs"
