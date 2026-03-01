@@ -65,6 +65,8 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
   const [newAorName, setNewAorName] = useState('')
   const [newEorName, setNewEorName] = useState('')
   const [newEorType, setNewEorType] = useState<EorType>(defaultEorType)
+  const [addCreatedAorToProject, setAddCreatedAorToProject] = useState(true)
+  const [addCreatedEorToProject, setAddCreatedEorToProject] = useState(true)
 
   const loadAors = async () => {
     const next = await fetchAors(token)
@@ -106,10 +108,15 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     const name = newAorName.trim()
     if (!name) return setMessage('AOR name is required.')
     const res = await createAor(token, { name })
-    if (!res.ok) return setMessage('Failed to create AOR.')
+    if (!res.ok || !res.data) return setMessage('Failed to create AOR.')
+    const createdAor = res.data
     await loadAors()
+    if (addCreatedAorToProject) {
+      setForm((prev) => ({ ...prev, aor: addUniqueMultiValue(prev.aor, createdAor.name) }))
+    }
     setNewAorName('')
     setAorInput('')
+    setAddCreatedAorToProject(true)
     setShowAorModal(false)
     setMessage('AOR created.')
   }
@@ -119,11 +126,16 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     if (!name) return setMessage('EOR name is required.')
     const res = await createEor(token, { type: newEorType, name })
     if (!res.ok || !res.data) return setMessage('Failed to create EOR.')
+    const createdEor = res.data
     await loadEors()
-    setSelectedEorType(res.data.type)
+    setSelectedEorType(createdEor.type)
+    if (addCreatedEorToProject) {
+      setForm((prev) => ({ ...prev, eor: addUniqueMultiValue(prev.eor, `${createdEor.type}: ${createdEor.name}`) }))
+    }
     setNewEorName('')
     setEorInput('')
     setNewEorType(defaultEorType)
+    setAddCreatedEorToProject(true)
     setShowEorModal(false)
     setMessage('EOR created.')
   }
@@ -465,6 +477,15 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
               />
             </label>
+            <label className="mt-3 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-slate-800">
+              <input
+                type="checkbox"
+                checked={addCreatedAorToProject}
+                onChange={(e) => setAddCreatedAorToProject(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Also add this AOR to current project
+            </label>
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
@@ -478,6 +499,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                 onClick={() => {
                   setShowAorModal(false)
                   setNewAorName('')
+                  setAddCreatedAorToProject(true)
                 }}
                 className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
               >
@@ -513,6 +535,15 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
               />
             </label>
+            <label className="mt-3 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-slate-800">
+              <input
+                type="checkbox"
+                checked={addCreatedEorToProject}
+                onChange={(e) => setAddCreatedEorToProject(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Also add this EOR to current project
+            </label>
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
@@ -527,6 +558,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                   setShowEorModal(false)
                   setNewEorName('')
                   setNewEorType(defaultEorType)
+                  setAddCreatedEorToProject(true)
                 }}
                 className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
               >
