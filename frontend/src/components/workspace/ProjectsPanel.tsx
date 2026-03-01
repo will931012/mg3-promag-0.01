@@ -34,13 +34,19 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
   const [showAorModal, setShowAorModal] = useState(false)
   const [newAorName, setNewAorName] = useState('')
 
+  const loadAors = async () => {
+    const next = await fetchAors(token)
+    setAors(next)
+    return next
+  }
+
   useEffect(() => {
     let mounted = true
-    const loadAors = async () => {
+    const loadInitialAors = async () => {
       const next = await fetchAors(token)
       if (mounted) setAors(next)
     }
-    loadAors()
+    loadInitialAors()
     return () => { mounted = false }
   }, [token])
 
@@ -55,10 +61,10 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     if (!name) return setMessage('AOR name is required.')
     const res = await createAor(token, { name })
     if (!res.ok || !res.data) return setMessage('Failed to create AOR.')
+    const createdAor = res.data
 
-    const next = [...aors, res.data].sort((a, b) => a.name.localeCompare(b.name))
-    setAors(next)
-    setForm((prev) => ({ ...prev, aor: res.data?.name ?? prev.aor }))
+    await loadAors()
+    setForm((prev) => ({ ...prev, aor: createdAor.name }))
     setAorSearch('')
     setNewAorName('')
     setShowAorModal(false)
@@ -153,6 +159,9 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                     <option key={item.id} value={item.name}>{item.name}</option>
                   ))}
                 </select>
+                {aorSearch && filteredAors.length === 0 ? (
+                  <p className="mt-1 text-xs text-slate-500">No AOR results for "{aorSearch}"</p>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setShowAorModal(true)}
