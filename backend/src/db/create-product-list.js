@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS product_list (
   address TEXT,
   developer VARCHAR(255),
   aor VARCHAR(255),
-  eor DATE,
+  eor VARCHAR(255),
   start_date DATE,
   end_date DATE,
   status VARCHAR(100),

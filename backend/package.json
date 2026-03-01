@@ -12,6 +12,7 @@
                     "db:drop":  "node src/db/drop-all.js",
                     "db:create:users":  "node src/db/create-users-table.js",
                     "db:create:aors":  "node src/db/create-aors-table.js",
+                    "db:create:eors":  "node src/db/create-eors-table.js",
                     "db:seed:user":  "node src/db/seed-user.js",
                     "db:create:product_list":  "node src/db/create-product-list.js",
                     "db:create:submittal_tracker":  "node src/db/create-submittal-tracker.js",

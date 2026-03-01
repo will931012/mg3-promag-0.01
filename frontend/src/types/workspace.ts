@@ -1,3 +1,5 @@
+import type { EorType } from '../app/eorTypes'
+
 export type DashboardSummary = {
   active_projects: number
   submittals_open: number
@@ -24,6 +26,12 @@ export type ProjectRecord = {
 
 export type AorRecord = {
   id: number
+  name: string
+}
+
+export type EorRecord = {
+  id: number
+  type: EorType
   name: string
 }
 

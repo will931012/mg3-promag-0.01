@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
+import { EOR_TYPES } from '../../app/eorTypes'
+import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
-import { createAor, createProject, deleteProject, fetchAors, updateProject } from '../../services/workspaceService'
-import type { AorRecord, ProjectRecord } from '../../types/workspace'
+import { createAor, createEor, createProject, deleteProject, fetchAors, fetchEors, updateProject } from '../../services/workspaceService'
+import type { AorRecord, EorRecord, ProjectRecord } from '../../types/workspace'
 
 type ProjectsPanelProps = {
   token: string
@@ -12,6 +14,21 @@ type ProjectsPanelProps = {
 }
 
 type ProjectForm = Omit<ProjectRecord, 'project_id'>
+const defaultEorType: EorType = 'Civil EOR'
+
+function parseStoredEor(value: string | null): { type: EorType; name: string } {
+  const raw = String(value || '').trim()
+  if (!raw) return { type: defaultEorType, name: '' }
+  const matched = EOR_TYPES.find((type) => raw.startsWith(`${type}: `))
+  if (!matched) return { type: defaultEorType, name: raw }
+  return { type: matched, name: raw.slice(matched.length + 2).trim() }
+}
+
+function formatStoredEor(type: EorType, name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return ''
+  return `${type}: ${trimmed}`
+}
 
 const emptyProjectForm: ProjectForm = {
   project_name: '',
@@ -30,8 +47,15 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
   const [form, setForm] = useState<ProjectForm>(emptyProjectForm)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [aors, setAors] = useState<AorRecord[]>([])
+  const [eors, setEors] = useState<EorRecord[]>([])
+  const [showAorSuggestions, setShowAorSuggestions] = useState(false)
+  const [showEorSuggestions, setShowEorSuggestions] = useState(false)
+  const [selectedEorType, setSelectedEorType] = useState<EorType>(defaultEorType)
   const [showAorModal, setShowAorModal] = useState(false)
+  const [showEorModal, setShowEorModal] = useState(false)
   const [newAorName, setNewAorName] = useState('')
+  const [newEorName, setNewEorName] = useState('')
+  const [newEorType, setNewEorType] = useState<EorType>(defaultEorType)
 
   const loadAors = async () => {
     const next = await fetchAors(token)
@@ -39,17 +63,37 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     return next
   }
 
+  const loadEors = async () => {
+    const next = await fetchEors(token)
+    setEors(next)
+    return next
+  }
+
   useEffect(() => {
     let mounted = true
-    const loadInitialAors = async () => {
-      const next = await fetchAors(token)
-      if (mounted) setAors(next)
+    const loadInitialLists = async () => {
+      const [nextAors, nextEors] = await Promise.all([fetchAors(token), fetchEors(token)])
+      if (!mounted) return
+      setAors(nextAors)
+      setEors(nextEors)
     }
-    loadInitialAors()
+    loadInitialLists()
     return () => { mounted = false }
   }, [token])
 
   const sortedAors = useMemo(() => [...aors].sort((a, b) => a.name.localeCompare(b.name)), [aors])
+  const filteredAors = useMemo(() => {
+    const query = String(form.aor ?? '').trim().toLowerCase()
+    if (!query) return sortedAors.slice(0, 8)
+    return sortedAors.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
+  }, [form.aor, sortedAors])
+
+  const filteredEors = useMemo(() => {
+    const byType = eors.filter((item) => item.type === selectedEorType)
+    const query = String(form.eor ?? '').trim().toLowerCase()
+    if (!query) return byType.slice(0, 8)
+    return byType.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
+  }, [eors, form.eor, selectedEorType])
 
   const handleCreateAor = async () => {
     const name = newAorName.trim()
@@ -65,6 +109,22 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     setMessage('AOR created.')
   }
 
+  const handleCreateEor = async () => {
+    const name = newEorName.trim()
+    if (!name) return setMessage('EOR name is required.')
+    const res = await createEor(token, { type: newEorType, name })
+    if (!res.ok || !res.data) return setMessage('Failed to create EOR.')
+    const createdEor = res.data
+
+    await loadEors()
+    setSelectedEorType(createdEor.type)
+    setForm((prev) => ({ ...prev, eor: createdEor.name }))
+    setNewEorName('')
+    setNewEorType(defaultEorType)
+    setShowEorModal(false)
+    setMessage('EOR created.')
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (editingProjectId) {
@@ -73,7 +133,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
         address: toNullableString(form.address),
         developer: toNullableString(form.developer),
         aor: toNullableString(form.aor),
-        eor: toNullableString(form.eor),
+        eor: toNullableString(formatStoredEor(selectedEorType, String(form.eor || ''))),
         start_date: toNullableString(form.start_date),
         end_date: toNullableString(form.end_date),
         status: toNullableString(form.status),
@@ -90,7 +150,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
         address: toNullableString(form.address),
         developer: toNullableString(form.developer),
         aor: toNullableString(form.aor),
-        eor: toNullableString(form.eor),
+        eor: toNullableString(formatStoredEor(selectedEorType, String(form.eor || ''))),
         start_date: toNullableString(form.start_date),
         end_date: toNullableString(form.end_date),
         status: toNullableString(form.status),
@@ -102,6 +162,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     }
 
     setForm(emptyProjectForm)
+    setSelectedEorType(defaultEorType)
     await refreshWorkspace(token)
   }
 
@@ -114,7 +175,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
           ['Address', 'address', 'text'],
           ['Developer', 'developer', 'text'],
           ['AOR', 'aor', 'text'],
-          ['EOR', 'eor', 'date'],
+          ['EOR', 'eor', 'text'],
           ['Start Date', 'start_date', 'date'],
           ['End Date', 'end_date', 'date'],
           ['Status', 'status', 'text'],
@@ -136,25 +197,101 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
               </select>
             ) : key === 'aor' ? (
               <>
-                <input
-                  type="text"
-                  list="aor-options"
-                  value={String(form[key as keyof ProjectForm] ?? '')}
-                  onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                  placeholder="Search or select AOR"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-                />
-                <datalist id="aor-options">
-                  {sortedAors.map((item) => (
-                    <option key={item.id} value={item.name} />
-                  ))}
-                </datalist>
+                <div className="relative mt-1">
+                  <input
+                    type="text"
+                    value={String(form[key as keyof ProjectForm] ?? '')}
+                    onFocus={() => setShowAorSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowAorSuggestions(false), 120)}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, [key]: e.target.value }))
+                      setShowAorSuggestions(true)
+                    }}
+                    placeholder="Search AOR"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                  {showAorSuggestions ? (
+                    <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-md">
+                      {filteredAors.length > 0 ? (
+                        filteredAors.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onMouseDown={() => {
+                              setForm((prev) => ({ ...prev, [key]: item.name }))
+                              setShowAorSuggestions(false)
+                            }}
+                            className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            {item.name}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-2 text-sm text-slate-500">No matches</p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowAorModal(true)}
                   className="mt-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
                 >
                   Add AOR
+                </button>
+              </>
+            ) : key === 'eor' ? (
+              <>
+                <select
+                  value={selectedEorType}
+                  onChange={(e) => setSelectedEorType(e.target.value as EorType)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                >
+                  {EOR_TYPES.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <div className="relative mt-2">
+                  <input
+                    type="text"
+                    value={String(form[key as keyof ProjectForm] ?? '')}
+                    onFocus={() => setShowEorSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowEorSuggestions(false), 120)}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, [key]: e.target.value }))
+                      setShowEorSuggestions(true)
+                    }}
+                    placeholder={`Search ${selectedEorType}`}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                  {showEorSuggestions ? (
+                    <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-md">
+                      {filteredEors.length > 0 ? (
+                        filteredEors.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onMouseDown={() => {
+                              setForm((prev) => ({ ...prev, [key]: item.name }))
+                              setShowEorSuggestions(false)
+                            }}
+                            className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            {item.name}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-2 text-sm text-slate-500">No matches</p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEorModal(true)}
+                  className="mt-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                >
+                  Add EOR
                 </button>
               </>
             ) : (
@@ -178,6 +315,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
               onClick={() => {
                 setEditingProjectId(null)
                 setForm(emptyProjectForm)
+                setSelectedEorType(defaultEorType)
               }}
               className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
             >
@@ -208,19 +346,21 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
+                        const parsedEor = parseStoredEor(item.eor)
                         setEditingProjectId(item.project_id)
                         setForm({
                           project_name: item.project_name ?? '',
                           address: item.address ?? '',
                           developer: item.developer ?? '',
                           aor: item.aor ?? '',
-                          eor: item.eor ?? '',
+                          eor: parsedEor.name,
                           start_date: item.start_date ?? '',
                           end_date: item.end_date ?? '',
                           status: item.status ?? '',
                           priority: item.priority ?? '',
                           notes: item.notes ?? '',
                         })
+                        setSelectedEorType(parsedEor.type)
                       }}
                       className="rounded bg-slate-200 px-2 py-1 text-xs"
                     >
@@ -271,6 +411,55 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                 onClick={() => {
                   setShowAorModal(false)
                   setNewAorName('')
+                }}
+                className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showEorModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">Add EOR</h3>
+            <label className="mt-3 block text-sm text-slate-700">
+              EOR Type
+              <select
+                value={newEorType}
+                onChange={(e) => setNewEorType(e.target.value as EorType)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              >
+                {EOR_TYPES.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mt-3 block text-sm text-slate-700">
+              EOR Name
+              <input
+                type="text"
+                value={newEorName}
+                onChange={(e) => setNewEorName(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleCreateEor}
+                className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Save EOR
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEorModal(false)
+                  setNewEorName('')
+                  setNewEorType(defaultEorType)
                 }}
                 className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
               >
