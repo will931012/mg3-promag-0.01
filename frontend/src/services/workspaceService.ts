@@ -1,7 +1,7 @@
 import { requestJson } from './http'
 import type { EorType } from '../app/eorTypes'
 import type { AuthUser } from '../types/auth'
-import type { ActionItemRecord, AorRecord, DashboardSummary, EorRecord, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
+import type { ActionItemRecord, AorRecord, DashboardSummary, EorRecord, ProjectRecord, ProviderRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
 
 const emptySummary: DashboardSummary = {
   active_projects: 0,
@@ -52,6 +52,15 @@ export async function fetchEors(token: string, type?: EorType): Promise<EorRecor
 
 export async function createEor(token: string, payload: { type: EorType; name: string }) {
   return requestJson<EorRecord>('/eors', { token, method: 'POST', body: payload })
+}
+
+export async function fetchProviders(token: string): Promise<ProviderRecord[]> {
+  const res = await requestJson<ProviderRecord[]>('/providers', { token })
+  return res.ok && Array.isArray(res.data) ? res.data : []
+}
+
+export async function createProvider(token: string, payload: { name: string }) {
+  return requestJson<ProviderRecord>('/providers', { token, method: 'POST', body: payload })
 }
 
 export async function fetchSubmittals(token: string): Promise<SubmittalRecord[]> {

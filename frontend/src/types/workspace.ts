@@ -34,6 +34,11 @@ export type EorRecord = {
   name: string
 }
 
+export type ProviderRecord = {
+  id: number
+  name: string
+}
+
 export type SubmittalRecord = {
   id: number
   project_id: string | null
@@ -45,8 +50,9 @@ export type SubmittalRecord = {
   date_received: string | null
   sent_to_aor: string | null
   sent_to_eor: string | null
+  sent_to_provider: string | null
   sent_to_date: string | null
-  approved_by: string | null
+  approvers: string | null
   approval_status: string | null
   revision: string | null
   due_date: string | null

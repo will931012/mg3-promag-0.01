@@ -9,6 +9,7 @@ import dashboardRouter from "./routes/dashboard.routes.js";
 import eorsRouter from "./routes/eors.routes.js";
 import healthRouter from "./routes/health.routes.js";
 import projectsRouter from "./routes/projects.routes.js";
+import providersRouter from "./routes/providers.routes.js";
 import rfisRouter from "./routes/rfis.routes.js";
 import submittalsRouter from "./routes/submittals.routes.js";
 
@@ -68,6 +69,7 @@ app.use("/api/dashboard", authRequired, dashboardRouter);
 app.use("/api/projects", authRequired, projectsRouter);
 app.use("/api/aors", authRequired, aorsRouter);
 app.use("/api/eors", authRequired, eorsRouter);
+app.use("/api/providers", authRequired, providersRouter);
 app.use("/api/submittals", authRequired, submittalsRouter);
 app.use("/api/rfis", authRequired, rfisRouter);
 app.use("/api/action-items", authRequired, actionItemsRouter);

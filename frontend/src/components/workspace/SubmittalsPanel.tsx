@@ -3,8 +3,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { EOR_TYPES } from '../../app/eorTypes'
 import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
-import { createSubmittal, deleteSubmittal, fetchAors, fetchEors, updateSubmittal } from '../../services/workspaceService'
-import type { AorRecord, EorRecord, ProjectRecord, SubmittalRecord } from '../../types/workspace'
+import { createProvider, createSubmittal, deleteSubmittal, fetchAors, fetchEors, fetchProviders, updateSubmittal } from '../../services/workspaceService'
+import type { AorRecord, EorRecord, ProjectRecord, ProviderRecord, SubmittalRecord } from '../../types/workspace'
 
 type SubmittalsPanelProps = {
   token: string
@@ -65,6 +65,7 @@ const ALL_DIVISION_CSI_OPTIONS: string[] = DIVISION_CSI_GROUPS.flatMap((group) =
 const OVERALL_STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as const
 const MULTI_VALUE_SEPARATOR = ' | '
 const todayIsoDate = () => new Date().toISOString().slice(0, 10)
+const NOTES_SEPARATOR = '\n\n'
 
 function splitMultiValues(value: string | null): string[] {
   return String(value || '')
@@ -86,6 +87,23 @@ function removeMultiValue(current: string | null, target: string): string {
   return next.join(MULTI_VALUE_SEPARATOR)
 }
 
+function splitNotes(value: string | null): string[] {
+  return String(value || '')
+    .split(NOTES_SEPARATOR)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function addNote(current: string | null, nextValue: string): string {
+  const trimmed = nextValue.trim()
+  if (!trimmed) return String(current || '')
+  return [...splitNotes(current), trimmed].join(NOTES_SEPARATOR)
+}
+
+function removeNote(current: string | null, note: string): string {
+  return splitNotes(current).filter((item) => item !== note).join(NOTES_SEPARATOR)
+}
+
 const emptyForm: Omit<SubmittalRecord, 'id'> = {
   project_id: '',
   division_csi: '',
@@ -96,8 +114,9 @@ const emptyForm: Omit<SubmittalRecord, 'id'> = {
   date_received: '',
   sent_to_aor: '',
   sent_to_eor: '',
+  sent_to_provider: '',
   sent_to_date: '',
-  approved_by: '',
+  approvers: '',
   approval_status: '',
   revision: '',
   due_date: '',
@@ -115,11 +134,18 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
   const [showProjectSuggestions, setShowProjectSuggestions] = useState(false)
   const [aors, setAors] = useState<AorRecord[]>([])
   const [eors, setEors] = useState<EorRecord[]>([])
+  const [providers, setProviders] = useState<ProviderRecord[]>([])
   const [sentToAorInput, setSentToAorInput] = useState('')
   const [sentToEorInput, setSentToEorInput] = useState('')
+  const [sentToProviderInput, setSentToProviderInput] = useState('')
   const [showAorSuggestions, setShowAorSuggestions] = useState(false)
   const [showEorSuggestions, setShowEorSuggestions] = useState(false)
+  const [showProviderSuggestions, setShowProviderSuggestions] = useState(false)
   const [selectedEorType, setSelectedEorType] = useState<EorType>('Civil EOR')
+  const [approverInput, setApproverInput] = useState('')
+  const [noteInput, setNoteInput] = useState('')
+  const [showProviderModal, setShowProviderModal] = useState(false)
+  const [newProviderName, setNewProviderName] = useState('')
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
@@ -137,14 +163,21 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       .filter((item) => item.type === selectedEorType && item.name.toLowerCase().includes(query))
       .slice(0, 8)
   }, [eors, selectedEorType, sentToEorInput])
+  const sortedProviders = useMemo(() => [...providers].sort((a, b) => a.name.localeCompare(b.name)), [providers])
+  const filteredProviders = useMemo(() => {
+    const query = sentToProviderInput.trim().toLowerCase()
+    if (query.length < 1) return []
+    return sortedProviders.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
+  }, [sentToProviderInput, sortedProviders])
 
   useEffect(() => {
     let mounted = true
     const loadLists = async () => {
-      const [nextAors, nextEors] = await Promise.all([fetchAors(token), fetchEors(token)])
+      const [nextAors, nextEors, nextProviders] = await Promise.all([fetchAors(token), fetchEors(token), fetchProviders(token)])
       if (!mounted) return
       setAors(nextAors)
       setEors(nextEors)
+      setProviders(nextProviders)
     }
     loadLists()
     return () => { mounted = false }
@@ -158,12 +191,28 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     if (query.length < 1) return []
     return sortedProjects.filter((project) => project.project_name.toLowerCase().includes(query)).slice(0, 8)
   }, [projectSearch, sortedProjects])
-  const approvedByOptions = useMemo(() => {
+  const approverOptions = useMemo(() => {
     const options: string[] = []
     if (form.sent_to_aor?.trim()) options.push(form.sent_to_aor.trim())
     options.push(...splitMultiValues(form.sent_to_eor))
+    if (form.sent_to_provider?.trim()) options.push(form.sent_to_provider.trim())
     return Array.from(new Set(options))
-  }, [form.sent_to_aor, form.sent_to_eor])
+  }, [form.sent_to_aor, form.sent_to_eor, form.sent_to_provider])
+
+  const handleCreateProvider = async () => {
+    const name = newProviderName.trim()
+    if (!name) return setMessage('Provider name is required.')
+    const res = await createProvider(token, { name })
+    const createdProvider = res.data
+    if (!res.ok || !createdProvider) return setMessage('Failed to create provider.')
+    const nextProviders = [...providers, createdProvider].sort((a, b) => a.name.localeCompare(b.name))
+    setProviders(nextProviders)
+    setSentToProviderInput(createdProvider.name)
+    setForm((p) => ({ ...p, sent_to_provider: createdProvider.name }))
+    setNewProviderName('')
+    setShowProviderModal(false)
+    setMessage('Provider created.')
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -179,8 +228,9 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       date_received: toNullableString(form.date_received),
       sent_to_aor: toNullableString(form.sent_to_aor),
       sent_to_eor: toNullableString(form.sent_to_eor),
+      sent_to_provider: toNullableString(form.sent_to_provider),
       sent_to_date: toNullableString(form.sent_to_date),
-      approved_by: toNullableString(form.approved_by),
+      approvers: toNullableString(form.approvers),
       approval_status: toNullableString(form.approval_status),
       revision: toNullableString(form.revision),
       due_date: toNullableString(form.due_date),
@@ -199,6 +249,9 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     setProjectSearch('')
     setSentToAorInput('')
     setSentToEorInput('')
+    setSentToProviderInput('')
+    setApproverInput('')
+    setNoteInput('')
     setSelectedEorType('Civil EOR')
     await refreshWorkspace(token)
   }
@@ -432,6 +485,80 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
               </div>
             ) : null}
           </div>
+          <div className="mt-3">
+            <label className="text-xs text-slate-600">Provider</label>
+            <div className="relative mt-1">
+              <input
+                value={sentToProviderInput}
+                onFocus={() => setShowProviderSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowProviderSuggestions(false), 120)}
+                onChange={(e) => {
+                  setSentToProviderInput(e.target.value)
+                  setForm((p) => ({ ...p, sent_to_provider: e.target.value }))
+                  setShowProviderSuggestions(true)
+                }}
+                placeholder="Search Provider"
+                className="w-full rounded border px-2 py-2"
+              />
+              {showProviderSuggestions ? (
+                <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-md">
+                  {sentToProviderInput.trim().length < 1 ? null : filteredProviders.length > 0 ? (
+                    filteredProviders.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseDown={() => {
+                          setSentToProviderInput(item.name)
+                          setForm((p) => ({ ...p, sent_to_provider: item.name }))
+                          setShowProviderSuggestions(false)
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        {item.name}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-2 text-sm text-slate-500">No matches</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const trimmed = sentToProviderInput.trim()
+                  if (!trimmed) return
+                  setForm((p) => ({ ...p, sent_to_provider: trimmed }))
+                  setShowProviderSuggestions(false)
+                }}
+                className="rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
+              >
+                Add Provider
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowProviderModal(true)}
+                className="rounded bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                Add Provider to DB
+              </button>
+            </div>
+            {form.sent_to_provider ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                  {form.sent_to_provider}
+                  <button
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, sent_to_provider: '' }))}
+                    className="rounded-full bg-slate-200 px-1 text-[10px] text-slate-600"
+                  >
+                    x
+                  </button>
+                </span>
+              </div>
+            ) : null}
+          </div>
         </div>
         <label className="text-sm">Sent To Date
           <input
@@ -441,27 +568,88 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             className="mt-1 w-full rounded border px-2 py-2"
           />
         </label>
-        <label className="text-sm">Approved By
+        <div className="text-sm">
+          <label className="text-sm">Approvers</label>
           <select
-            value={form.approved_by ?? ''}
-            onChange={(e) => setForm((p) => ({ ...p, approved_by: e.target.value }))}
+            value={approverInput}
+            onChange={(e) => setApproverInput(e.target.value)}
             className="mt-1 w-full rounded border px-2 py-2"
           >
-            <option value="">Select approver</option>
-            {form.approved_by && !approvedByOptions.includes(form.approved_by) ? (
-              <option value={form.approved_by}>{form.approved_by}</option>
-            ) : null}
-            {approvedByOptions.map((option) => (
+            <option value="">Select approver from Sent To</option>
+            {approverOptions.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
           </select>
-        </label>
+          <button
+            type="button"
+            onClick={() => {
+              const next = addUniqueMultiValue(form.approvers, approverInput)
+              setForm((p) => ({ ...p, approvers: next }))
+              setApproverInput('')
+            }}
+            className="mt-2 rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
+          >
+            Add Approver
+          </button>
+          {form.approvers ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {splitMultiValues(form.approvers).map((item) => (
+                <span key={item} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                  {item}
+                  <button
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, approvers: removeMultiValue(p.approvers, item) }))}
+                    className="rounded-full bg-slate-200 px-1 text-[10px] text-slate-600"
+                  >
+                    x
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <label className="text-sm">Due Date
           <input type="date" value={form.due_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
         </label>
         <label className="text-sm">Start Date
           <input type="date" value={form.start_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, start_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
         </label>
+        <div className="text-sm lg:col-span-2">
+          <label className="text-sm">Notes</label>
+          <textarea
+            value={noteInput}
+            onChange={(e) => setNoteInput(e.target.value)}
+            rows={3}
+            placeholder="Write note"
+            className="mt-1 w-full rounded border px-2 py-2"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setForm((p) => ({ ...p, notes: addNote(p.notes, noteInput) }))
+              setNoteInput('')
+            }}
+            className="mt-2 rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
+          >
+            Add Note
+          </button>
+          {form.notes ? (
+            <div className="mt-2 space-y-2">
+              {splitNotes(form.notes).map((note) => (
+                <div key={note} className="flex items-start justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-slate-700">{note}</p>
+                  <button
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, notes: removeNote(p.notes, note) }))}
+                    className="rounded bg-slate-200 px-2 py-1 text-[10px] text-slate-600"
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <div className="flex gap-2 lg:col-span-4">
           <button type="submit" className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white">
             {editingId ? 'Update Submittal' : 'Create Submittal'}
@@ -475,6 +663,9 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 setProjectSearch('')
                 setSentToAorInput('')
                 setSentToEorInput('')
+                setSentToProviderInput('')
+                setApproverInput('')
+                setNoteInput('')
                 setSelectedEorType('Civil EOR')
               }}
               className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold"
@@ -505,6 +696,9 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                         setProjectSearch(item.project_id ? (projectNameById[item.project_id] ?? '') : '')
                         setSentToAorInput(item.sent_to_aor ?? '')
                         setSentToEorInput('')
+                        setSentToProviderInput(item.sent_to_provider ?? '')
+                        setApproverInput('')
+                        setNoteInput('')
                         setSelectedEorType('Civil EOR')
                       }}
                       className="rounded bg-slate-200 px-2 py-1 text-xs"
@@ -529,6 +723,42 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
           </tbody>
         </table>
       </div>
+
+      {showProviderModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">Add Provider</h3>
+            <label className="mt-3 block text-sm text-slate-700">
+              Provider Name
+              <input
+                type="text"
+                value={newProviderName}
+                onChange={(e) => setNewProviderName(e.target.value)}
+                className="mt-1 w-full rounded border px-3 py-2"
+              />
+            </label>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleCreateProvider}
+                className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Save Provider
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProviderModal(false)
+                  setNewProviderName('')
+                }}
+                className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

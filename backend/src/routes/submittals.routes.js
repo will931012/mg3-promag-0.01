@@ -3,33 +3,35 @@ import pool from "../db/pool.js";
 
 const router = Router();
 
+const selectSubmittalSql = `
+  SELECT
+    id,
+    project_id,
+    division_csi,
+    submittal_number,
+    description,
+    contractor,
+    start_date,
+    date_received,
+    sent_to_aor,
+    sent_to_eor,
+    sent_to_provider,
+    sent_to_date,
+    approvers,
+    approval_status,
+    revision,
+    due_date,
+    CASE WHEN date_received IS NULL THEN NULL ELSE (CURRENT_DATE - date_received)::int END AS days_pending,
+    overall_status,
+    responsible,
+    workflow_stage,
+    notes
+  FROM submittal_tracker
+`;
+
 router.get("/", async (_req, res) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT
-        id,
-        project_id,
-        division_csi,
-        submittal_number,
-        description,
-        contractor,
-        start_date,
-        date_received,
-        sent_to_aor,
-        sent_to_eor,
-        sent_to_date,
-        approved_by,
-        approval_status,
-        revision,
-        due_date,
-        CASE WHEN date_received IS NULL THEN NULL ELSE (CURRENT_DATE - date_received)::int END AS days_pending,
-        overall_status,
-        responsible,
-        workflow_stage,
-        notes
-      FROM submittal_tracker
-      ORDER BY id DESC
-    `);
+    const { rows } = await pool.query(`${selectSubmittalSql} ORDER BY id DESC`);
     return res.json(rows);
   } catch (error) {
     if (error?.code === "42P01") return res.json([]);
@@ -48,8 +50,9 @@ router.post("/", async (req, res) => {
     date_received,
     sent_to_aor,
     sent_to_eor,
+    sent_to_provider,
     sent_to_date,
-    approved_by,
+    approvers,
     approval_status,
     revision,
     due_date,
@@ -63,9 +66,9 @@ router.post("/", async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO submittal_tracker (
         project_id, division_csi, submittal_number, description, contractor, start_date, date_received, sent_to_aor, sent_to_eor,
-        sent_to_date, approved_by, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
+        sent_to_provider, sent_to_date, approvers, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN ($8 IS NOT NULL OR $9 IS NOT NULL) THEN COALESCE($10, CURRENT_DATE) ELSE $10 END,$11,$12,$13,$14,$15,$16,$17,$18)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CASE WHEN ($8 IS NOT NULL OR $9 IS NOT NULL) THEN COALESCE($11, CURRENT_DATE) ELSE $11 END,$12,$13,$14,$15,$16,$17,$18,$19)
       RETURNING
         id,
         project_id,
@@ -77,8 +80,9 @@ router.post("/", async (req, res) => {
         date_received,
         sent_to_aor,
         sent_to_eor,
+        sent_to_provider,
         sent_to_date,
-        approved_by,
+        approvers,
         approval_status,
         revision,
         due_date,
@@ -88,8 +92,25 @@ router.post("/", async (req, res) => {
         workflow_stage,
         notes`,
       [
-        project_id, division_csi, submittal_number, description, contractor, start_date, date_received, sent_to_aor, sent_to_eor,
-        sent_to_date, approved_by, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
+        project_id,
+        division_csi,
+        submittal_number,
+        description,
+        contractor,
+        start_date,
+        date_received,
+        sent_to_aor,
+        sent_to_eor,
+        sent_to_provider,
+        sent_to_date,
+        approvers,
+        approval_status,
+        revision,
+        due_date,
+        overall_status,
+        responsible,
+        workflow_stage,
+        notes
       ]
     );
     return res.status(201).json(rows[0]);
@@ -112,8 +133,9 @@ router.put("/:id", async (req, res) => {
     date_received,
     sent_to_aor,
     sent_to_eor,
+    sent_to_provider,
     sent_to_date,
-    approved_by,
+    approvers,
     approval_status,
     revision,
     due_date,
@@ -135,18 +157,19 @@ router.put("/:id", async (req, res) => {
            date_received = $8,
            sent_to_aor = $9,
            sent_to_eor = $10,
+           sent_to_provider = $11,
            sent_to_date = CASE
-             WHEN ($9 IS DISTINCT FROM sent_to_aor OR $10 IS DISTINCT FROM sent_to_eor) THEN COALESCE($11, CURRENT_DATE)
-             ELSE COALESCE($11, sent_to_date)
+             WHEN ($9 IS DISTINCT FROM sent_to_aor OR $10 IS DISTINCT FROM sent_to_eor) THEN COALESCE($12, CURRENT_DATE)
+             ELSE COALESCE($12, sent_to_date)
            END,
-           approved_by = $12,
-           approval_status = $13,
-           revision = $14,
-           due_date = $15,
-           overall_status = $16,
-           responsible = $17,
-           workflow_stage = $18,
-           notes = $19
+           approvers = $13,
+           approval_status = $14,
+           revision = $15,
+           due_date = $16,
+           overall_status = $17,
+           responsible = $18,
+           workflow_stage = $19,
+           notes = $20
        WHERE id = $1
        RETURNING
          id,
@@ -159,8 +182,9 @@ router.put("/:id", async (req, res) => {
          date_received,
          sent_to_aor,
          sent_to_eor,
+         sent_to_provider,
          sent_to_date,
-         approved_by,
+         approvers,
          approval_status,
          revision,
          due_date,
@@ -170,8 +194,26 @@ router.put("/:id", async (req, res) => {
          workflow_stage,
          notes`,
       [
-        id, project_id, division_csi, submittal_number, description, contractor, start_date, date_received, sent_to_aor, sent_to_eor,
-        sent_to_date, approved_by, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
+        id,
+        project_id,
+        division_csi,
+        submittal_number,
+        description,
+        contractor,
+        start_date,
+        date_received,
+        sent_to_aor,
+        sent_to_eor,
+        sent_to_provider,
+        sent_to_date,
+        approvers,
+        approval_status,
+        revision,
+        due_date,
+        overall_status,
+        responsible,
+        workflow_stage,
+        notes
       ]
     );
     if (!rows[0]) return res.status(404).json({ detail: "Submittal not found." });
