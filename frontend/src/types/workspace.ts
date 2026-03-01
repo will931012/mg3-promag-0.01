@@ -41,9 +41,11 @@ export type SubmittalRecord = {
   submittal_number: string | null
   description: string | null
   contractor: string | null
+  start_date: string | null
   date_received: string | null
   sent_to_aor: string | null
   sent_to_eor: string | null
+  sent_to_date: string | null
   approval_status: string | null
   revision: string | null
   due_date: string | null

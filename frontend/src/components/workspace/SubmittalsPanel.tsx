@@ -1,8 +1,10 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-import { toNullableNumber, toNullableString } from '../../app/formUtils'
-import { createSubmittal, deleteSubmittal, updateSubmittal } from '../../services/workspaceService'
-import type { ProjectRecord, SubmittalRecord } from '../../types/workspace'
+import { EOR_TYPES } from '../../app/eorTypes'
+import type { EorType } from '../../app/eorTypes'
+import { toNullableString } from '../../app/formUtils'
+import { createSubmittal, deleteSubmittal, fetchAors, fetchEors, updateSubmittal } from '../../services/workspaceService'
+import type { AorRecord, EorRecord, ProjectRecord, SubmittalRecord } from '../../types/workspace'
 
 type SubmittalsPanelProps = {
   token: string
@@ -60,6 +62,29 @@ const DIVISION_CSI_GROUPS = [
 ] as const
 
 const ALL_DIVISION_CSI_OPTIONS: string[] = DIVISION_CSI_GROUPS.flatMap((group) => group.options)
+const OVERALL_STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as const
+const MULTI_VALUE_SEPARATOR = ' | '
+const todayIsoDate = () => new Date().toISOString().slice(0, 10)
+
+function splitMultiValues(value: string | null): string[] {
+  return String(value || '')
+    .split(MULTI_VALUE_SEPARATOR)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function addUniqueMultiValue(current: string | null, nextValue: string): string {
+  const trimmed = nextValue.trim()
+  if (!trimmed) return String(current || '')
+  const currentValues = splitMultiValues(current)
+  if (currentValues.includes(trimmed)) return currentValues.join(MULTI_VALUE_SEPARATOR)
+  return [...currentValues, trimmed].join(MULTI_VALUE_SEPARATOR)
+}
+
+function removeMultiValue(current: string | null, target: string): string {
+  const next = splitMultiValues(current).filter((item) => item !== target)
+  return next.join(MULTI_VALUE_SEPARATOR)
+}
 
 const emptyForm: Omit<SubmittalRecord, 'id'> = {
   project_id: '',
@@ -67,9 +92,11 @@ const emptyForm: Omit<SubmittalRecord, 'id'> = {
   submittal_number: '',
   description: '',
   contractor: '',
+  start_date: '',
   date_received: '',
   sent_to_aor: '',
   sent_to_eor: '',
+  sent_to_date: '',
   approval_status: '',
   revision: '',
   due_date: '',
@@ -85,10 +112,42 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
   const [editingId, setEditingId] = useState<number | null>(null)
   const [projectSearch, setProjectSearch] = useState('')
   const [showProjectSuggestions, setShowProjectSuggestions] = useState(false)
+  const [aors, setAors] = useState<AorRecord[]>([])
+  const [eors, setEors] = useState<EorRecord[]>([])
+  const [sentToAorInput, setSentToAorInput] = useState('')
+  const [sentToEorInput, setSentToEorInput] = useState('')
+  const [showAorSuggestions, setShowAorSuggestions] = useState(false)
+  const [showEorSuggestions, setShowEorSuggestions] = useState(false)
+  const [selectedEorType, setSelectedEorType] = useState<EorType>('Civil EOR')
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
   )
+  const sortedAors = useMemo(() => [...aors].sort((a, b) => a.name.localeCompare(b.name)), [aors])
+  const filteredAors = useMemo(() => {
+    const query = sentToAorInput.trim().toLowerCase()
+    if (query.length < 1) return []
+    return sortedAors.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
+  }, [sentToAorInput, sortedAors])
+  const filteredEors = useMemo(() => {
+    const query = sentToEorInput.trim().toLowerCase()
+    if (query.length < 1) return []
+    return eors
+      .filter((item) => item.type === selectedEorType && item.name.toLowerCase().includes(query))
+      .slice(0, 8)
+  }, [eors, selectedEorType, sentToEorInput])
+
+  useEffect(() => {
+    let mounted = true
+    const loadLists = async () => {
+      const [nextAors, nextEors] = await Promise.all([fetchAors(token), fetchEors(token)])
+      if (!mounted) return
+      setAors(nextAors)
+      setEors(nextEors)
+    }
+    loadLists()
+    return () => { mounted = false }
+  }, [token])
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => a.project_name.localeCompare(b.project_name)),
     [projects]
@@ -109,13 +168,15 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       submittal_number: toNullableString(form.submittal_number),
       description: toNullableString(form.description),
       contractor: toNullableString(form.contractor),
+      start_date: toNullableString(form.start_date),
       date_received: toNullableString(form.date_received),
       sent_to_aor: toNullableString(form.sent_to_aor),
       sent_to_eor: toNullableString(form.sent_to_eor),
+      sent_to_date: toNullableString(form.sent_to_date),
       approval_status: toNullableString(form.approval_status),
       revision: toNullableString(form.revision),
       due_date: toNullableString(form.due_date),
-      days_pending: toNullableNumber(form.days_pending),
+      days_pending: null,
       overall_status: toNullableString(form.overall_status),
       responsible: toNullableString(form.responsible),
       workflow_stage: toNullableString(form.workflow_stage),
@@ -128,6 +189,9 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     setEditingId(null)
     setForm(emptyForm)
     setProjectSearch('')
+    setSentToAorInput('')
+    setSentToEorInput('')
+    setSelectedEorType('Civil EOR')
     await refreshWorkspace(token)
   }
 
@@ -197,17 +261,160 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
           </select>
         </label>
         <label className="text-sm">Overall Status
-          <input value={form.overall_status ?? ''} onChange={(e) => setForm((p) => ({ ...p, overall_status: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
+          <select
+            value={form.overall_status ?? ''}
+            onChange={(e) => setForm((p) => ({ ...p, overall_status: e.target.value }))}
+            className="mt-1 w-full rounded border px-2 py-2"
+          >
+            <option value="">Select overall status</option>
+            {OVERALL_STATUS_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
         </label>
         <label className="text-sm lg:col-span-2">Description
-          <input value={form.description ?? ''} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
+          <textarea
+            value={form.description ?? ''}
+            onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+            rows={4}
+            className="mt-1 w-full rounded border px-2 py-2"
+          />
+        </label>
+        <div className="text-sm lg:col-span-2">
+          <p className="font-medium text-slate-700">Sent To</p>
+          <p className="mt-1 text-xs text-slate-500">You can send to one AOR and multiple EOR.</p>
+          <div className="mt-2">
+            <label className="text-xs text-slate-600">AOR</label>
+            <div className="relative mt-1">
+              <input
+                value={sentToAorInput}
+                onFocus={() => setShowAorSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowAorSuggestions(false), 120)}
+                onChange={(e) => {
+                  setSentToAorInput(e.target.value)
+                  setForm((p) => ({ ...p, sent_to_aor: e.target.value }))
+                  setShowAorSuggestions(true)
+                }}
+                placeholder="Search AOR"
+                className="w-full rounded border px-2 py-2"
+              />
+              {showAorSuggestions ? (
+                <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-md">
+                  {sentToAorInput.trim().length < 1 ? null : filteredAors.length > 0 ? (
+                    filteredAors.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseDown={() => {
+                          setSentToAorInput(item.name)
+                          setForm((p) => ({ ...p, sent_to_aor: item.name, sent_to_date: p.sent_to_date || todayIsoDate() }))
+                          setShowAorSuggestions(false)
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        {item.name}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-2 text-sm text-slate-500">No matches</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="text-xs text-slate-600">EOR</label>
+            <select
+              value={selectedEorType}
+              onChange={(e) => setSelectedEorType(e.target.value as EorType)}
+              className="mt-1 w-full rounded border px-2 py-2"
+            >
+              {EOR_TYPES.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+            <div className="relative mt-2">
+              <input
+                value={sentToEorInput}
+                onFocus={() => setShowEorSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowEorSuggestions(false), 120)}
+                onChange={(e) => {
+                  setSentToEorInput(e.target.value)
+                  setShowEorSuggestions(true)
+                }}
+                placeholder={`Search ${selectedEorType}`}
+                className="w-full rounded border px-2 py-2"
+              />
+              {showEorSuggestions ? (
+                <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-md">
+                  {sentToEorInput.trim().length < 1 ? null : filteredEors.length > 0 ? (
+                    filteredEors.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseDown={() => {
+                          setSentToEorInput(item.name)
+                          setShowEorSuggestions(false)
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        {item.name}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-2 text-sm text-slate-500">No matches</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const trimmed = sentToEorInput.trim()
+                if (!trimmed) return
+                const formatted = `${selectedEorType}: ${trimmed}`
+                const next = addUniqueMultiValue(form.sent_to_eor, formatted)
+                setForm((p) => ({ ...p, sent_to_eor: next, sent_to_date: p.sent_to_date || todayIsoDate() }))
+                setSentToEorInput('')
+                setShowEorSuggestions(false)
+              }}
+              className="mt-2 rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
+            >
+              Add EOR
+            </button>
+            {form.sent_to_eor ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {splitMultiValues(form.sent_to_eor).map((item) => (
+                  <span key={item} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                    {item}
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, sent_to_eor: removeMultiValue(p.sent_to_eor, item) }))}
+                      className="rounded-full bg-slate-200 px-1 text-[10px] text-slate-600"
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <label className="text-sm">Sent To Date
+          <input
+            type="date"
+            value={form.sent_to_date ?? ''}
+            onChange={(e) => setForm((p) => ({ ...p, sent_to_date: e.target.value }))}
+            className="mt-1 w-full rounded border px-2 py-2"
+          />
         </label>
         <label className="text-sm">Due Date
           <input type="date" value={form.due_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
         </label>
-        <label className="text-sm">Days Pending
-          <input type="number" value={form.days_pending ?? ''} onChange={(e) => setForm((p) => ({ ...p, days_pending: toNullableNumber(e.target.value) }))} className="mt-1 w-full rounded border px-2 py-2" />
+        <label className="text-sm">Start Date
+          <input type="date" value={form.start_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, start_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
         </label>
+        <p className="text-xs text-slate-500 self-end">Days Pending is calculated automatically from creation date.</p>
         <div className="flex gap-2 lg:col-span-4">
           <button type="submit" className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white">
             {editingId ? 'Update Submittal' : 'Create Submittal'}
@@ -219,6 +426,9 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 setEditingId(null)
                 setForm(emptyForm)
                 setProjectSearch('')
+                setSentToAorInput('')
+                setSentToEorInput('')
+                setSelectedEorType('Civil EOR')
               }}
               className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold"
             >
@@ -246,6 +456,9 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                         setEditingId(item.id)
                         setForm({ ...item })
                         setProjectSearch(item.project_id ? (projectNameById[item.project_id] ?? '') : '')
+                        setSentToAorInput(item.sent_to_aor ?? '')
+                        setSentToEorInput('')
+                        setSelectedEorType('Civil EOR')
                       }}
                       className="rounded bg-slate-200 px-2 py-1 text-xs"
                     >
