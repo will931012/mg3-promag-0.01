@@ -28,7 +28,10 @@ const emptyForm: Omit<ActionItemRecord, 'id'> = {
 export default function ActionItemsPanel({ token, projects, actionItems, setMessage, refreshWorkspace }: ActionItemsPanelProps) {
   const [form, setForm] = useState<Omit<ActionItemRecord, 'id'>>(emptyForm)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const projectIds = useMemo(() => projects.map((p) => p.project_id), [projects])
+  const projectNameById = useMemo(
+    () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
+    [projects]
+  )
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -56,8 +59,15 @@ export default function ActionItemsPanel({ token, projects, actionItems, setMess
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-xl font-semibold text-slate-900">{editingId ? 'Edit Action Item' : 'New Action Item'}</h2>
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm">Project ID
-          <input list="action-project-ids" value={form.project_id ?? ''} onChange={(e) => setForm((p) => ({ ...p, project_id: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
+        <label className="text-sm">Project
+          <select value={form.project_id ?? ''} onChange={(e) => setForm((p) => ({ ...p, project_id: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2">
+            <option value="">Select project</option>
+            {projects.map((project) => (
+              <option key={project.project_id} value={project.project_id}>
+                {project.project_name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="text-sm">Task
           <input value={form.task ?? ''} onChange={(e) => setForm((p) => ({ ...p, task: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
@@ -99,7 +109,7 @@ export default function ActionItemsPanel({ token, projects, actionItems, setMess
             {actionItems.map((item) => (
               <tr key={item.id}>
                 <td className="border px-3 py-2">{item.id}</td>
-                <td className="border px-3 py-2">{item.project_id}</td>
+                <td className="border px-3 py-2">{item.project_id ? (projectNameById[item.project_id] ?? 'Unknown Project') : ''}</td>
                 <td className="border px-3 py-2">{item.task}</td>
                 <td className="border px-3 py-2">{item.assigned_to}</td>
                 <td className="border px-3 py-2">{item.status}</td>
@@ -124,10 +134,6 @@ export default function ActionItemsPanel({ token, projects, actionItems, setMess
           </tbody>
         </table>
       </div>
-
-      <datalist id="action-project-ids">
-        {projectIds.map((id) => <option key={id} value={id} />)}
-      </datalist>
     </section>
   )
 }

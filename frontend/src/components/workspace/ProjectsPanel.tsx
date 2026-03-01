@@ -1,8 +1,8 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { toNullableString } from '../../app/formUtils'
-import { createProject, deleteProject, updateProject } from '../../services/workspaceService'
-import type { ProjectRecord } from '../../types/workspace'
+import { createAor, createProject, deleteProject, fetchAors, updateProject } from '../../services/workspaceService'
+import type { AorRecord, ProjectRecord } from '../../types/workspace'
 
 type ProjectsPanelProps = {
   token: string
@@ -11,8 +11,9 @@ type ProjectsPanelProps = {
   refreshWorkspace: (token: string) => Promise<void>
 }
 
-const emptyProjectForm: ProjectRecord = {
-  project_id: '',
+type ProjectForm = Omit<ProjectRecord, 'project_id'>
+
+const emptyProjectForm: ProjectForm = {
   project_name: '',
   address: '',
   developer: '',
@@ -26,8 +27,43 @@ const emptyProjectForm: ProjectRecord = {
 }
 
 export default function ProjectsPanel({ token, projects, setMessage, refreshWorkspace }: ProjectsPanelProps) {
-  const [form, setForm] = useState<ProjectRecord>(emptyProjectForm)
+  const [form, setForm] = useState<ProjectForm>(emptyProjectForm)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [aors, setAors] = useState<AorRecord[]>([])
+  const [aorSearch, setAorSearch] = useState('')
+  const [showAorModal, setShowAorModal] = useState(false)
+  const [newAorName, setNewAorName] = useState('')
+
+  useEffect(() => {
+    let mounted = true
+    const loadAors = async () => {
+      const next = await fetchAors(token)
+      if (mounted) setAors(next)
+    }
+    loadAors()
+    return () => { mounted = false }
+  }, [token])
+
+  const filteredAors = useMemo(() => {
+    const query = aorSearch.trim().toLowerCase()
+    if (!query) return aors
+    return aors.filter((item) => item.name.toLowerCase().includes(query))
+  }, [aors, aorSearch])
+
+  const handleCreateAor = async () => {
+    const name = newAorName.trim()
+    if (!name) return setMessage('AOR name is required.')
+    const res = await createAor(token, { name })
+    if (!res.ok || !res.data) return setMessage('Failed to create AOR.')
+
+    const next = [...aors, res.data].sort((a, b) => a.name.localeCompare(b.name))
+    setAors(next)
+    setForm((prev) => ({ ...prev, aor: res.data?.name ?? prev.aor }))
+    setAorSearch('')
+    setNewAorName('')
+    setShowAorModal(false)
+    setMessage('AOR created.')
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -50,7 +86,6 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
       setEditingProjectId(null)
     } else {
       const res = await createProject(token, {
-        project_id: form.project_id,
         project_name: form.project_name,
         address: toNullableString(form.address),
         developer: toNullableString(form.developer),
@@ -75,11 +110,10 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
       <h2 className="text-xl font-semibold text-slate-900">{editingProjectId ? 'Edit Project' : 'New Project'}</h2>
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {[
-          ['Project ID', 'project_id', 'text'],
           ['Project Name', 'project_name', 'text'],
           ['Address', 'address', 'text'],
           ['Developer', 'developer', 'text'],
-          ['AOR', 'aor', 'date'],
+          ['AOR', 'aor', 'text'],
           ['EOR', 'eor', 'date'],
           ['Start Date', 'start_date', 'date'],
           ['End Date', 'end_date', 'date'],
@@ -89,14 +123,53 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
         ].map(([label, key, type]) => (
           <label key={key} className="text-sm text-slate-700">
             {label}
-            <input
-              type={type}
-              required={key === 'project_id' || key === 'project_name'}
-              disabled={editingProjectId !== null && key === 'project_id'}
-              value={String(form[key as keyof ProjectRecord] ?? '')}
-              onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
+            {key === 'developer' ? (
+              <select
+                value={String(form[key as keyof ProjectForm] ?? '')}
+                onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              >
+                <option value="">Select developer</option>
+                <option value="MG3">MG3</option>
+                <option value="ABH">ABH</option>
+                <option value="FORSE">FORSE</option>
+              </select>
+            ) : key === 'aor' ? (
+              <>
+                <input
+                  type="text"
+                  value={aorSearch}
+                  onChange={(e) => setAorSearch(e.target.value)}
+                  placeholder="Search AOR"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                />
+                <select
+                  value={String(form[key as keyof ProjectForm] ?? '')}
+                  onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2"
+                >
+                  <option value="">Select AOR</option>
+                  {filteredAors.map((item) => (
+                    <option key={item.id} value={item.name}>{item.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowAorModal(true)}
+                  className="mt-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                >
+                  Add AOR
+                </button>
+              </>
+            ) : (
+              <input
+                type={type}
+                required={key === 'project_name'}
+                value={String(form[key as keyof ProjectForm] ?? '')}
+                onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            )}
           </label>
         ))}
         <div className="flex gap-2 md:col-span-2 lg:col-span-3">
@@ -141,7 +214,6 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                       onClick={() => {
                         setEditingProjectId(item.project_id)
                         setForm({
-                          project_id: item.project_id,
                           project_name: item.project_name ?? '',
                           address: item.address ?? '',
                           developer: item.developer ?? '',
@@ -176,6 +248,42 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
           </tbody>
         </table>
       </div>
+
+      {showAorModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">Add AOR</h3>
+            <label className="mt-3 block text-sm text-slate-700">
+              AOR Name
+              <input
+                type="text"
+                value={newAorName}
+                onChange={(e) => setNewAorName(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleCreateAor}
+                className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Save AOR
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAorModal(false)
+                  setNewAorName('')
+                }}
+                className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

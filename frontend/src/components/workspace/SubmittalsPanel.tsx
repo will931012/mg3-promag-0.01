@@ -34,7 +34,10 @@ const emptyForm: Omit<SubmittalRecord, 'id'> = {
 export default function SubmittalsPanel({ token, projects, submittals, setMessage, refreshWorkspace }: SubmittalsPanelProps) {
   const [form, setForm] = useState<Omit<SubmittalRecord, 'id'>>(emptyForm)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const projectIds = useMemo(() => projects.map((p) => p.project_id), [projects])
+  const projectNameById = useMemo(
+    () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
+    [projects]
+  )
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -70,8 +73,15 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-xl font-semibold text-slate-900">{editingId ? 'Edit Submittal' : 'New Submittal'}</h2>
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm">Project ID
-          <input list="submittal-project-ids" value={form.project_id ?? ''} onChange={(e) => setForm((p) => ({ ...p, project_id: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
+        <label className="text-sm">Project
+          <select value={form.project_id ?? ''} onChange={(e) => setForm((p) => ({ ...p, project_id: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2">
+            <option value="">Select project</option>
+            {projects.map((project) => (
+              <option key={project.project_id} value={project.project_id}>
+                {project.project_name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="text-sm">Submittal #
           <input value={form.submittal_number ?? ''} onChange={(e) => setForm((p) => ({ ...p, submittal_number: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
@@ -110,7 +120,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             {submittals.map((item) => (
               <tr key={item.id}>
                 <td className="border px-3 py-2">{item.id}</td>
-                <td className="border px-3 py-2">{item.project_id}</td>
+                <td className="border px-3 py-2">{item.project_id ? (projectNameById[item.project_id] ?? 'Unknown Project') : ''}</td>
                 <td className="border px-3 py-2">{item.submittal_number}</td>
                 <td className="border px-3 py-2">{item.overall_status}</td>
                 <td className="border px-3 py-2">{item.due_date ?? ''}</td>
@@ -135,10 +145,6 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
           </tbody>
         </table>
       </div>
-
-      <datalist id="submittal-project-ids">
-        {projectIds.map((id) => <option key={id} value={id} />)}
-      </datalist>
     </section>
   )
 }

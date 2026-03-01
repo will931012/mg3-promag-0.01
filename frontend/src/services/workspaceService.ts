@@ -1,6 +1,6 @@
 import { requestJson } from './http'
 import type { AuthUser } from '../types/auth'
-import type { ActionItemRecord, DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
+import type { ActionItemRecord, AorRecord, DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
 
 const emptySummary: DashboardSummary = {
   active_projects: 0,
@@ -22,7 +22,7 @@ export async function fetchProjects(token: string): Promise<ProjectRecord[]> {
   return res.ok && Array.isArray(res.data) ? res.data : []
 }
 
-export async function createProject(token: string, payload: ProjectRecord) {
+export async function createProject(token: string, payload: Omit<ProjectRecord, 'project_id'>) {
   return requestJson<ProjectRecord>('/projects', { token, method: 'POST', body: payload })
 }
 
@@ -32,6 +32,15 @@ export async function updateProject(token: string, projectId: string, payload: O
 
 export async function deleteProject(token: string, projectId: string) {
   return requestJson<null>(`/projects/${encodeURIComponent(projectId)}`, { token, method: 'DELETE' })
+}
+
+export async function fetchAors(token: string): Promise<AorRecord[]> {
+  const res = await requestJson<AorRecord[]>('/aors', { token })
+  return res.ok && Array.isArray(res.data) ? res.data : []
+}
+
+export async function createAor(token: string, payload: { name: string }) {
+  return requestJson<AorRecord>('/aors', { token, method: 'POST', body: payload })
 }
 
 export async function fetchSubmittals(token: string): Promise<SubmittalRecord[]> {

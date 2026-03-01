@@ -22,6 +22,11 @@ export type ProjectRecord = {
   notes: string | null
 }
 
+export type AorRecord = {
+  id: number
+  name: string
+}
+
 export type SubmittalRecord = {
   id: number
   project_id: string | null
