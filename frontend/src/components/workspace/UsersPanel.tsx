@@ -6,11 +6,11 @@ type UsersPanelProps = {
 
 export default function UsersPanel({ users }: UsersPanelProps) {
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="ui-panel slide-in">
       <h2 className="text-xl font-semibold text-slate-900">Users</h2>
       <p className="mt-1 text-sm text-slate-500">User table for the platform.</p>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[700px] border-collapse text-sm">
+      <div className="ui-scroll mt-4 overflow-x-auto">
+        <table className="ui-table min-w-[700px]">
           <thead>
             <tr className="bg-slate-100">
               {['ID', 'Username', 'Email', 'Full Name'].map((h) => (

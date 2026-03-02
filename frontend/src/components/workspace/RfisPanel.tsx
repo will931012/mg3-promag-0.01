@@ -5,6 +5,10 @@ import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
 import { createSubcontractor, createRfi, deleteRfi, fetchSubcontractors, updateRfi } from '../../services/workspaceService'
 import type { ProjectRecord, SubcontractorRecord, RfiRecord } from '../../types/workspace'
+import EmptyState from '../common/EmptyState'
+import PrimaryButton from '../common/PrimaryButton'
+import SectionHeader from '../common/SectionHeader'
+import StatusBadge from '../common/StatusBadge'
 
 type RfisPanelProps = {
   token: string
@@ -97,6 +101,8 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   const [showSubcontractorModal, setShowSubcontractorModal] = useState(false)
   const [newSubcontractorName, setNewSubcontractorName] = useState('')
   const [descriptionInput, setDescriptionInput] = useState('')
+  const [listSearch, setListSearch] = useState('')
+  const [listStatusFilter, setListStatusFilter] = useState<'all' | 'opened' | 'closed'>('all')
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
@@ -137,6 +143,18 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
     if (query.length < 1) return []
     return sortedSubcontractors.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
   }, [sentToSubcontractorInput, sortedSubcontractors])
+  const filteredTableRfis = useMemo(() => {
+    const query = listSearch.trim().toLowerCase()
+    return rfis.filter((item) => {
+      const lifecycle = String(item.lifecycle_status || '').toLowerCase()
+      const statusPass =
+        listStatusFilter === 'all' ? true : listStatusFilter === 'opened' ? lifecycle !== 'closed' : lifecycle === 'closed'
+      const searchPass = query.length === 0
+        ? true
+        : `${item.rfi_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query)
+      return statusPass && searchPass
+    })
+  }, [rfis, listSearch, listStatusFilter])
 
   useEffect(() => {
     let mounted = true
@@ -200,30 +218,32 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-900">{editingId ? 'Edit RFI' : 'RFIs'}</h2>
-        <button
-          type="button"
-          onClick={() => {
-            if (showForm && !editingId) {
-              setShowForm(false)
-              return
-            }
-            setEditingId(null)
-            setForm(emptyForm)
-            setProjectSearch('')
-            setSelectedProjectEorOption('')
-            setSentToSubcontractorInput('')
-            setDescriptionInput('')
-            setSelectedEorType('Civil EOR')
-            setShowForm(true)
-          }}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-        >
-          {showForm ? 'Hide Form' : 'Add RFI'}
-        </button>
-      </div>
+    <section className="ui-panel slide-in">
+      <SectionHeader
+        title={editingId ? 'Edit RFI' : 'RFIs'}
+        subtitle="Keep request communication visible with clear open/closed status."
+        actions={
+          <PrimaryButton
+            type="button"
+            onClick={() => {
+              if (showForm && !editingId) {
+                setShowForm(false)
+                return
+              }
+              setEditingId(null)
+              setForm(emptyForm)
+              setProjectSearch('')
+              setSelectedProjectEorOption('')
+              setSentToSubcontractorInput('')
+              setDescriptionInput('')
+              setSelectedEorType('Civil EOR')
+              setShowForm(true)
+            }}
+          >
+            {showForm ? 'Hide Form' : 'Add RFI'}
+          </PrimaryButton>
+        }
+      />
       {showForm ? (
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm">Project (search by name)
@@ -512,17 +532,39 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
       </form>
       ) : null}
 
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+      <div className="mt-6 grid gap-2 md:grid-cols-3">
+        <input
+          value={listSearch}
+          onChange={(event) => setListSearch(event.target.value)}
+          placeholder="Search RFI #, subject, or project id"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <select
+          value={listStatusFilter}
+          onChange={(event) => setListStatusFilter(event.target.value as 'all' | 'opened' | 'closed')}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
+          <option value="all">All statuses</option>
+          <option value="opened">Opened</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+      <div className="ui-scroll mt-3 overflow-x-auto">
+        <table className="ui-table min-w-[900px]">
           <thead><tr className="bg-slate-100">{['ID', 'Project', 'RFI #', 'Subject', 'Status', 'Actions'].map((h) => <th key={h} className="border px-3 py-2 text-left">{h}</th>)}</tr></thead>
           <tbody>
-            {rfis.map((item) => (
+            {filteredTableRfis.map((item) => (
               <tr key={item.id}>
                 <td className="border px-3 py-2">{item.id}</td>
                 <td className="border px-3 py-2">{item.project_id ? (projectNameById[item.project_id] ?? 'Unknown Project') : ''}</td>
                 <td className="border px-3 py-2">{item.rfi_number}</td>
                 <td className="border px-3 py-2">{item.subject}</td>
-                <td className="border px-3 py-2">{item.status}</td>
+                <td className="border px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge label={item.status || 'Opened'} tone={item.lifecycle_status === 'closed' ? 'success' : 'info'} />
+                    {item.response_due && item.response_due < todayIsoDate() ? <StatusBadge label="Overdue" tone="danger" /> : null}
+                  </div>
+                </td>
                 <td className="border px-3 py-2">
                   <div className="flex gap-2">
                     <button
@@ -555,6 +597,18 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
                 </td>
               </tr>
             ))}
+            {filteredTableRfis.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="border px-3 py-8">
+                  <EmptyState
+                    title="No RFIs match"
+                    description="Try changing filters or add a new RFI."
+                    ctaLabel="Add RFI"
+                    onCta={() => setShowForm(true)}
+                  />
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

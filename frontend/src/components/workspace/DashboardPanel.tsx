@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
 
+import EmptyState from '../common/EmptyState'
+import StatusBadge from '../common/StatusBadge'
 import type { DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../../types/workspace'
 
 type DashboardPanelProps = {
@@ -81,25 +83,21 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
     {
       label: 'Active Projects',
       value: summary.active_projects,
-      tone: 'from-[#1f4e79] to-[#2a6fa7]',
       chip: `${safePercent(summary.active_projects, totalProjects || 1)}% portfolio`,
     },
     {
       label: 'Open Submittals',
       value: summary.submittals_open,
-      tone: 'from-[#106c6f] to-[#21a38f]',
       chip: `${summary.submittals_late} late`,
     },
     {
       label: 'Open RFIs',
       value: summary.rfis_open,
-      tone: 'from-[#8b5a14] to-[#d79d2b]',
       chip: `${summary.rfis_overdue_open} overdue`,
     },
     {
       label: 'Critical Attention',
       value: pressureCases,
-      tone: 'from-[#8d2648] to-[#c44766]',
       chip: pressureCases === 0 ? 'All clear' : 'Needs follow-up',
     },
   ] as const
@@ -114,10 +112,10 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
   const topProjects = useMemo(() => projects.slice(0, 3), [projects])
 
   return (
-    <section className="space-y-3 text-[#d9e2ff]">
-      <div className="rounded-xl border border-white/5 bg-[#1b2035] p-4">
+    <section className="slide-in space-y-3 text-[#d9e2ff]">
+      <div className="rounded-xl border border-white/10 bg-[#1b2035] p-4">
         <p className="text-xs text-[#8f98bf]">Today's Sales</p>
-        <h2 className="text-lg font-semibold text-[#f0f4ff]">Sales Summary</h2>
+        <h2 className="text-xl font-semibold text-[#f0f4ff]">Sales Summary</h2>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => {
             const to =
@@ -133,17 +131,19 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
               key={card.label}
               type="button"
               onClick={() => onNavigate(to)}
-              className="rounded-lg border border-white/5 bg-[#111628] p-3 text-left transition hover:border-[#5be1c7]/60 hover:bg-[#171d34]"
+              className="rounded-lg border border-white/10 bg-[#111628] p-3 text-left transition hover:border-[#5be1c7]/60 hover:bg-[#171d34]"
             >
-              <p className="text-xs text-[#8f98bf]">{card.label}</p>
+              <p className="text-xs font-semibold tracking-[0.06em] text-[#8f98bf]">{card.label}</p>
               <p className="mt-1 text-2xl font-bold text-[#f2f7ff]">{card.value}</p>
-              <p className="text-[11px] text-[#5be1c7]">{card.chip}</p>
+              <div className="mt-1">
+                <StatusBadge label={card.chip} tone={card.label === 'Critical Attention' ? 'warning' : 'info'} />
+              </div>
             </button>
           )})}
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/5 bg-[#1b2035] p-4">
+      <div className="rounded-xl border border-white/10 bg-[#1b2035] p-4">
         <h3 className="text-lg font-semibold text-[#f0f4ff]">Quick Links</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
@@ -154,11 +154,11 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
                   key={project.project_id}
                   type="button"
                   onClick={() => onNavigate(`/projects/${encodeURIComponent(project.project_id)}`)}
-                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm text-[#d9e2ff] hover:bg-white/10"
+                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm font-medium text-[#d9e2ff] hover:bg-white/10"
                 >
                   {project.project_name}
                 </button>
-              )) : <p className="text-sm text-[#97a0c4]">No projects</p>}
+              )) : <EmptyState title="No projects yet" description="Create your first project to populate dashboard links." ctaLabel="Go to Projects" onCta={() => onNavigate('/projects')} />}
             </div>
           </div>
           <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
@@ -172,11 +172,11 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
                     if (!item.project_id) return
                     onNavigate(`/projects/${encodeURIComponent(item.project_id)}/submittals/${item.id}`)
                   }}
-                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm text-[#d9e2ff] hover:bg-white/10"
+                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm font-medium text-[#d9e2ff] hover:bg-white/10"
                 >
                   {item.submittal_number || `Submittal ${item.id}`}
                 </button>
-              )) : <p className="text-sm text-[#97a0c4]">No submittals</p>}
+              )) : <EmptyState title="No submittals" description="Open Projects and add one to track review workflow." ctaLabel="Go to Submittals" onCta={() => onNavigate('/submittals')} />}
             </div>
           </div>
           <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
@@ -190,18 +190,18 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
                     if (!item.project_id) return
                     onNavigate(`/projects/${encodeURIComponent(item.project_id)}/rfis/${item.id}`)
                   }}
-                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm text-[#d9e2ff] hover:bg-white/10"
+                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm font-medium text-[#d9e2ff] hover:bg-white/10"
                 >
                   {item.rfi_number || `RFI ${item.id}`}
                 </button>
-              )) : <p className="text-sm text-[#97a0c4]">No RFIs</p>}
+              )) : <EmptyState title="No RFIs" description="Create an RFI to start communication tracking." ctaLabel="Go to RFIs" onCta={() => onNavigate('/rfis')} />}
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1.5fr_1fr]">
-        <article className="rounded-xl border border-white/5 bg-[#1b2035] p-4">
+        <article className="rounded-xl border border-white/10 bg-[#1b2035] p-4">
           <h3 className="text-lg font-semibold text-[#f0f4ff]">Delivery Flow</h3>
           <div className="mt-3 rounded-lg border border-white/5 bg-[#12172a] p-3">
             <svg viewBox="0 0 100 100" className="h-40 w-full">
@@ -233,7 +233,7 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
           </div>
         </article>
 
-        <article className="rounded-xl border border-white/5 bg-[#1b2035] p-4">
+        <article className="rounded-xl border border-white/10 bg-[#1b2035] p-4">
           <h3 className="text-lg font-semibold text-[#f0f4ff]">Project Distribution</h3>
           <div className="mt-3 space-y-3 text-xs">
             <div>

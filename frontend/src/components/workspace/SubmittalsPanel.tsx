@@ -5,6 +5,10 @@ import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
 import { createSubcontractor, createSubmittal, deleteSubmittal, fetchSubcontractors, updateSubmittal } from '../../services/workspaceService'
 import type { ProjectRecord, SubcontractorRecord, SubmittalRecord } from '../../types/workspace'
+import EmptyState from '../common/EmptyState'
+import PrimaryButton from '../common/PrimaryButton'
+import SectionHeader from '../common/SectionHeader'
+import StatusBadge from '../common/StatusBadge'
 
 type SubmittalsPanelProps = {
   token: string
@@ -149,6 +153,8 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
   const [noteInput, setNoteInput] = useState('')
   const [showSubcontractorModal, setShowSubcontractorModal] = useState(false)
   const [newSubcontractorName, setNewSubcontractorName] = useState('')
+  const [listSearch, setListSearch] = useState('')
+  const [listStatusFilter, setListStatusFilter] = useState<'all' | 'opened' | 'closed'>('all')
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
@@ -207,6 +213,18 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     if (form.sent_to_subcontractor?.trim()) options.push(form.sent_to_subcontractor.trim())
     return Array.from(new Set(options))
   }, [form.sent_to_aor, form.sent_to_eor, form.sent_to_subcontractor])
+  const filteredTableSubmittals = useMemo(() => {
+    const query = listSearch.trim().toLowerCase()
+    return submittals.filter((item) => {
+      const lifecycle = String(item.lifecycle_status || '').toLowerCase()
+      const statusPass =
+        listStatusFilter === 'all' ? true : listStatusFilter === 'opened' ? lifecycle !== 'closed' : lifecycle === 'closed'
+      const searchPass = query.length === 0
+        ? true
+        : `${item.submittal_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query)
+      return statusPass && searchPass
+    })
+  }, [submittals, listSearch, listStatusFilter])
 
   const handleCreateSubcontractor = async () => {
     const name = newSubcontractorName.trim()
@@ -271,31 +289,33 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-900">{editingId ? 'Edit Submittal' : 'Submittals'}</h2>
-        <button
-          type="button"
-          onClick={() => {
-            if (showForm && !editingId) {
-              setShowForm(false)
-              return
-            }
-            setEditingId(null)
-            setForm(emptyForm)
-            setProjectSearch('')
-            setSelectedProjectEorOption('')
-            setSentToSubcontractorInput('')
-            setApproverInput('')
-            setNoteInput('')
-            setSelectedEorType('Civil EOR')
-            setShowForm(true)
-          }}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-        >
-          {showForm ? 'Hide Form' : 'Add Submittal'}
-        </button>
-      </div>
+    <section className="ui-panel slide-in">
+      <SectionHeader
+        title={editingId ? 'Edit Submittal' : 'Submittals'}
+        subtitle="Track open/closed progress and due dates with searchable lists."
+        actions={
+          <PrimaryButton
+            type="button"
+            onClick={() => {
+              if (showForm && !editingId) {
+                setShowForm(false)
+                return
+              }
+              setEditingId(null)
+              setForm(emptyForm)
+              setProjectSearch('')
+              setSelectedProjectEorOption('')
+              setSentToSubcontractorInput('')
+              setApproverInput('')
+              setNoteInput('')
+              setSelectedEorType('Civil EOR')
+              setShowForm(true)
+            }}
+          >
+            {showForm ? 'Hide Form' : 'Add Submittal'}
+          </PrimaryButton>
+        }
+      />
       {showForm ? (
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm">Project (search by name)
@@ -657,16 +677,38 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       </form>
       ) : null}
 
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[1000px] border-collapse text-sm">
+      <div className="mt-6 grid gap-2 md:grid-cols-3">
+        <input
+          value={listSearch}
+          onChange={(event) => setListSearch(event.target.value)}
+          placeholder="Search submittal #, subject, or project id"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+        <select
+          value={listStatusFilter}
+          onChange={(event) => setListStatusFilter(event.target.value as 'all' | 'opened' | 'closed')}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
+          <option value="all">All statuses</option>
+          <option value="opened">Opened</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+      <div className="ui-scroll mt-3 overflow-x-auto">
+        <table className="ui-table min-w-[1000px]">
           <thead><tr className="bg-slate-100">{['ID', 'Project', 'Submittal #', 'Overall Status', 'Due Date', 'Actions'].map((h) => <th key={h} className="border px-3 py-2 text-left">{h}</th>)}</tr></thead>
           <tbody>
-            {submittals.map((item) => (
+            {filteredTableSubmittals.map((item) => (
               <tr key={item.id}>
                 <td className="border px-3 py-2">{item.id}</td>
                 <td className="border px-3 py-2">{item.project_id ? (projectNameById[item.project_id] ?? 'Unknown Project') : ''}</td>
                 <td className="border px-3 py-2">{item.submittal_number}</td>
-                <td className="border px-3 py-2">{item.overall_status}</td>
+                <td className="border px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge label={item.overall_status || item.approval_status || 'Opened'} tone={item.lifecycle_status === 'closed' ? 'success' : 'info'} />
+                    {item.due_date && item.due_date < todayIsoDate() ? <StatusBadge label="Late" tone="danger" /> : null}
+                  </div>
+                </td>
                 <td className="border px-3 py-2">{item.due_date ?? ''}</td>
                 <td className="border px-3 py-2">
                   <div className="flex gap-2">
@@ -706,6 +748,18 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 </td>
               </tr>
             ))}
+            {filteredTableSubmittals.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="border px-3 py-8">
+                  <EmptyState
+                    title="No submittals match"
+                    description="Try a different search or status filter, or create a new submittal."
+                    ctaLabel="Add Submittal"
+                    onCta={() => setShowForm(true)}
+                  />
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

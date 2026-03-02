@@ -3,6 +3,11 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { EOR_TYPES } from '../../app/eorTypes'
 import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
+import Breadcrumbs from '../common/Breadcrumbs'
+import EmptyState from '../common/EmptyState'
+import PrimaryButton from '../common/PrimaryButton'
+import SectionHeader from '../common/SectionHeader'
+import StatusBadge from '../common/StatusBadge'
 import {
   createAor,
   createEor,
@@ -111,6 +116,22 @@ function getRfiLifecycleStatus(status: string | null): 'opened' | 'closed' {
     : 'opened'
 }
 
+const todayIsoDate = () => new Date().toISOString().slice(0, 10)
+
+function isDueWithinSevenDays(dateValue: string | null): boolean {
+  if (!dateValue) return false
+  const now = new Date(todayIsoDate())
+  const due = new Date(dateValue)
+  const diffMs = due.getTime() - now.getTime()
+  const diffDays = diffMs / (1000 * 60 * 60 * 24)
+  return diffDays >= 0 && diffDays <= 7
+}
+
+function isPastDue(dateValue: string | null): boolean {
+  if (!dateValue) return false
+  return dateValue < todayIsoDate()
+}
+
 const emptyProjectForm: ProjectForm = {
   project_name: '',
   address: '',
@@ -176,6 +197,10 @@ export default function ProjectsPanel({
   const [noteInput, setNoteInput] = useState('')
   const [addCreatedAorToProject, setAddCreatedAorToProject] = useState(true)
   const [addCreatedEorToProject, setAddCreatedEorToProject] = useState(true)
+  const [detailSearch, setDetailSearch] = useState('')
+  const [detailTimingFilter, setDetailTimingFilter] = useState<'all' | 'late' | 'this_week'>('all')
+  const [isSavingSubmittalDetail, setIsSavingSubmittalDetail] = useState(false)
+  const [isSavingRfiDetail, setIsSavingRfiDetail] = useState(false)
 
   const loadAors = async () => {
     const next = await fetchAors(token)
@@ -244,14 +269,34 @@ export default function ProjectsPanel({
     () => (detailsView === 'submittals' ? filteredProjectSubmittals : filteredProjectRfis),
     [detailsView, filteredProjectSubmittals, filteredProjectRfis]
   )
-  const firstDetailRow = useMemo(() => detailItems.slice(0, 2), [detailItems])
+  const searchedDetailItems = useMemo(() => {
+    const query = detailSearch.trim().toLowerCase()
+    const bySearch = query
+      ? detailItems.filter((item) => {
+          if (detailsView === 'submittals') {
+            const source = item as SubmittalRecord
+            return `${source.submittal_number || ''} ${source.subject || ''}`.toLowerCase().includes(query)
+          }
+          const source = item as RfiRecord
+          return `${source.rfi_number || ''} ${source.subject || ''}`.toLowerCase().includes(query)
+        })
+      : detailItems
+    if (detailTimingFilter === 'all') return bySearch
+    return bySearch.filter((item) => {
+      const targetDate = detailsView === 'submittals' ? (item as SubmittalRecord).due_date : (item as RfiRecord).response_due
+      return detailTimingFilter === 'late' ? isPastDue(targetDate) : isDueWithinSevenDays(targetDate)
+    })
+  }, [detailItems, detailSearch, detailTimingFilter, detailsView])
+  const firstDetailRow = useMemo(() => searchedDetailItems.slice(0, 2), [searchedDetailItems])
   const extraDetailRows = useMemo(() => {
     const rows: Array<Array<SubmittalRecord | RfiRecord>> = []
-    for (let index = 2; index < detailItems.length; index += 2) {
-      rows.push(detailItems.slice(index, index + 2))
+    for (let index = 2; index < searchedDetailItems.length; index += 2) {
+      rows.push(searchedDetailItems.slice(index, index + 2))
     }
     return rows
-  }, [detailItems])
+  }, [searchedDetailItems])
+  const submittalDetailOrder = useMemo(() => projectSubmittals.map((item) => item.id), [projectSubmittals])
+  const rfiDetailOrder = useMemo(() => projectRfis.map((item) => item.id), [projectRfis])
 
   useEffect(() => {
     setSelectedProjectId(routeProjectId)
@@ -261,8 +306,29 @@ export default function ProjectsPanel({
     if (routeSubmittalId) setDetailsView('submittals')
   }, [routeProjectId, routeSubmittalId, routeRfiId])
 
+  const hasUnsavedSubmittalDetail = useMemo(() => {
+    if (!selectedSubmittalDetail || !submittalDraft) return false
+    return JSON.stringify(submittalDraft) !== JSON.stringify(selectedSubmittalDetail)
+  }, [selectedSubmittalDetail, submittalDraft])
+
+  const hasUnsavedRfiDetail = useMemo(() => {
+    if (!selectedRfiDetail || !rfiDraft) return false
+    return JSON.stringify(rfiDraft) !== JSON.stringify(selectedRfiDetail)
+  }, [selectedRfiDetail, rfiDraft])
+
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedSubmittalDetail && !hasUnsavedRfiDetail) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', beforeUnload)
+    return () => window.removeEventListener('beforeunload', beforeUnload)
+  }, [hasUnsavedSubmittalDetail, hasUnsavedRfiDetail])
+
   const handleSaveSubmittalDetail = async () => {
     if (!selectedSubmittalDetailId || !submittalDraft) return
+    setIsSavingSubmittalDetail(true)
     const payload: Omit<SubmittalRecord, 'id'> = {
       ...submittalDraft,
       project_id: toNullableString(submittalDraft.project_id),
@@ -287,13 +353,18 @@ export default function ProjectsPanel({
       days_pending: null,
     }
     const res = await updateSubmittal(token, selectedSubmittalDetailId, payload)
-    if (!res.ok) return setMessage('Failed to update submittal from detail page.')
+    if (!res.ok) {
+      setIsSavingSubmittalDetail(false)
+      return setMessage('Failed to update submittal from detail page.')
+    }
     setMessage('Submittal updated.')
     await refreshWorkspace(token)
+    setIsSavingSubmittalDetail(false)
   }
 
   const handleSaveRfiDetail = async () => {
     if (!selectedRfiDetailId || !rfiDraft) return
+    setIsSavingRfiDetail(true)
     const payload: Omit<RfiRecord, 'id'> = {
       ...rfiDraft,
       project_id: toNullableString(rfiDraft.project_id),
@@ -315,9 +386,13 @@ export default function ProjectsPanel({
       days_open: null,
     }
     const res = await updateRfi(token, selectedRfiDetailId, payload)
-    if (!res.ok) return setMessage('Failed to update RFI from detail page.')
+    if (!res.ok) {
+      setIsSavingRfiDetail(false)
+      return setMessage('Failed to update RFI from detail page.')
+    }
     setMessage('RFI updated.')
     await refreshWorkspace(token)
+    setIsSavingRfiDetail(false)
   }
 
   const handleCreateAor = async () => {
@@ -403,35 +478,46 @@ export default function ProjectsPanel({
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="ui-panel slide-in">
       {selectedProject ? (
         <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-slate-900">
-              {selectedSubmittalDetail ? 'Submittal Detail Page' : selectedRfiDetail ? 'RFI Detail Page' : 'Project Details'}
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedSubmittalDetail) {
-                  onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}`)
+          <Breadcrumbs
+            items={[
+              { label: 'Projects', onClick: () => onNavigate('/projects') },
+              { label: selectedProject.project_name, onClick: selectedSubmittalDetail || selectedRfiDetail ? () => onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}`) : undefined },
+              ...(selectedSubmittalDetail ? [{ label: `Submittal #${selectedSubmittalDetail.id}` }] : []),
+              ...(selectedRfiDetail ? [{ label: `RFI #${selectedRfiDetail.id}` }] : []),
+            ]}
+            rightSlot={
+              <PrimaryButton
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  if (selectedSubmittalDetail) {
+                    if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Leave anyway?')) return
+                    onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}`)
+                    setSubmittalDraft(null)
+                    return
+                  }
+                  if (selectedRfiDetail) {
+                    if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Leave anyway?')) return
+                    onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}`)
+                    setRfiDraft(null)
+                    return
+                  }
+                  onNavigate('/projects')
                   setSubmittalDraft(null)
-                  return
-                }
-                if (selectedRfiDetail) {
-                  onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}`)
                   setRfiDraft(null)
-                  return
-                }
-                onNavigate('/projects')
-                setSubmittalDraft(null)
-                setRfiDraft(null)
-              }}
-              className="rounded-lg bg-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
-            >
-              {selectedSubmittalDetail || selectedRfiDetail ? 'Back to Project Details' : 'Back to Projects'}
-            </button>
-          </div>
+                }}
+              >
+                {selectedSubmittalDetail || selectedRfiDetail ? 'Back to Project Details' : 'Back to Projects'}
+              </PrimaryButton>
+            }
+          />
+          <SectionHeader
+            title={selectedSubmittalDetail ? 'Submittal Detail Page' : selectedRfiDetail ? 'RFI Detail Page' : 'Project Details'}
+            subtitle={selectedSubmittalDetail || selectedRfiDetail ? 'Edit and save changes with clear navigation controls.' : 'Switch between Submittals and RFIs for this project.'}
+          />
           {selectedSubmittalDetail ? (
             <article className="detail-card mx-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-md">
               <h3 className="text-2xl font-semibold text-slate-900">Submittal Detail Page</h3>
@@ -489,24 +575,49 @@ export default function ProjectsPanel({
                   />
                 </label>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 md:sticky md:bottom-0 md:bg-white">
+                <StatusBadge label={hasUnsavedSubmittalDetail ? 'Unsaved Changes' : 'All Changes Saved'} tone={hasUnsavedSubmittalDetail ? 'warning' : 'success'} />
+                <PrimaryButton type="button" onClick={handleSaveSubmittalDetail} disabled={isSavingSubmittalDetail}>
+                  {isSavingSubmittalDetail ? 'Saving...' : 'Save Changes'}
+                </PrimaryButton>
+                <PrimaryButton
                   type="button"
-                  onClick={handleSaveSubmittalDetail}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-                >
-                  Save Changes
-                </button>
-                <button
-                  type="button"
+                  variant="secondary"
                   onClick={() => {
                     if (!selectedSubmittalDetail) return
                     setSubmittalDraft({ ...selectedSubmittalDetail })
                   }}
-                  className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
                 >
                   Reset
-                </button>
+                </PrimaryButton>
+                <PrimaryButton
+                  type="button"
+                  variant="secondary"
+                  disabled={submittalDetailOrder.indexOf(selectedSubmittalDetailId || 0) <= 0}
+                  onClick={() => {
+                    if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Continue without saving?')) return
+                    const currentIndex = submittalDetailOrder.indexOf(selectedSubmittalDetailId || 0)
+                    if (currentIndex <= 0) return
+                    const prevId = submittalDetailOrder[currentIndex - 1]
+                    onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${prevId}`)
+                  }}
+                >
+                  Previous
+                </PrimaryButton>
+                <PrimaryButton
+                  type="button"
+                  variant="secondary"
+                  disabled={submittalDetailOrder.indexOf(selectedSubmittalDetailId || 0) >= submittalDetailOrder.length - 1}
+                  onClick={() => {
+                    if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Continue without saving?')) return
+                    const currentIndex = submittalDetailOrder.indexOf(selectedSubmittalDetailId || 0)
+                    if (currentIndex < 0 || currentIndex >= submittalDetailOrder.length - 1) return
+                    const nextId = submittalDetailOrder[currentIndex + 1]
+                    onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${nextId}`)
+                  }}
+                >
+                  Next
+                </PrimaryButton>
               </div>
             </article>
           ) : selectedRfiDetail ? (
@@ -566,24 +677,49 @@ export default function ProjectsPanel({
                   />
                 </label>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 md:sticky md:bottom-0 md:bg-white">
+                <StatusBadge label={hasUnsavedRfiDetail ? 'Unsaved Changes' : 'All Changes Saved'} tone={hasUnsavedRfiDetail ? 'warning' : 'success'} />
+                <PrimaryButton type="button" onClick={handleSaveRfiDetail} disabled={isSavingRfiDetail}>
+                  {isSavingRfiDetail ? 'Saving...' : 'Save Changes'}
+                </PrimaryButton>
+                <PrimaryButton
                   type="button"
-                  onClick={handleSaveRfiDetail}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-                >
-                  Save Changes
-                </button>
-                <button
-                  type="button"
+                  variant="secondary"
                   onClick={() => {
                     if (!selectedRfiDetail) return
                     setRfiDraft({ ...selectedRfiDetail })
                   }}
-                  className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
                 >
                   Reset
-                </button>
+                </PrimaryButton>
+                <PrimaryButton
+                  type="button"
+                  variant="secondary"
+                  disabled={rfiDetailOrder.indexOf(selectedRfiDetailId || 0) <= 0}
+                  onClick={() => {
+                    if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Continue without saving?')) return
+                    const currentIndex = rfiDetailOrder.indexOf(selectedRfiDetailId || 0)
+                    if (currentIndex <= 0) return
+                    const prevId = rfiDetailOrder[currentIndex - 1]
+                    onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${prevId}`)
+                  }}
+                >
+                  Previous
+                </PrimaryButton>
+                <PrimaryButton
+                  type="button"
+                  variant="secondary"
+                  disabled={rfiDetailOrder.indexOf(selectedRfiDetailId || 0) >= rfiDetailOrder.length - 1}
+                  onClick={() => {
+                    if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Continue without saving?')) return
+                    const currentIndex = rfiDetailOrder.indexOf(selectedRfiDetailId || 0)
+                    if (currentIndex < 0 || currentIndex >= rfiDetailOrder.length - 1) return
+                    const nextId = rfiDetailOrder[currentIndex + 1]
+                    onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${nextId}`)
+                  }}
+                >
+                  Next
+                </PrimaryButton>
               </div>
             </article>
           ) : (
@@ -596,7 +732,10 @@ export default function ProjectsPanel({
                       <h3 className="text-3xl font-semibold text-slate-900">{selectedProject.project_name}</h3>
                       <p className="mt-1 text-sm text-slate-500">{selectedProject.address || 'No address'}</p>
                     </div>
-                    <span className="text-2xl font-semibold text-brand-700">{selectedProject.priority || 'N/A'}</span>
+                    <StatusBadge
+                      label={selectedProject.priority || 'N/A'}
+                      tone={selectedProject.priority === 'High' ? 'danger' : selectedProject.priority === 'Medium' ? 'warning' : 'info'}
+                    />
                   </div>
                   <p className="mt-2 text-sm text-slate-600">Developer: {selectedProject.developer || 'N/A'}</p>
                   <div className="mt-4 flex gap-2">
@@ -656,6 +795,24 @@ export default function ProjectsPanel({
                       </>
                     )}
                   </div>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    <input
+                      type="text"
+                      value={detailSearch}
+                      onChange={(event) => setDetailSearch(event.target.value)}
+                      placeholder={detailsView === 'submittals' ? 'Search submittal number or subject' : 'Search RFI number or subject'}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    />
+                    <select
+                      value={detailTimingFilter}
+                      onChange={(event) => setDetailTimingFilter(event.target.value as 'all' | 'late' | 'this_week')}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    >
+                      <option value="all">All timing</option>
+                      <option value="late">Late only</option>
+                      <option value="this_week">Due this week</option>
+                    </select>
+                  </div>
                 </div>
               </article>
 
@@ -690,20 +847,32 @@ export default function ProjectsPanel({
                             ? ((item as SubmittalRecord).submittal_number || (item as SubmittalRecord).subject || 'Untitled')
                             : ((item as RfiRecord).rfi_number || (item as RfiRecord).subject || 'Untitled')}
                         </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {detailsView === 'submittals'
-                            ? ((item as SubmittalRecord).overall_status || (item as SubmittalRecord).approval_status || 'Opened')
-                            : ((item as RfiRecord).status || 'Opened')}
-                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <StatusBadge
+                            label={
+                              detailsView === 'submittals'
+                                ? ((item as SubmittalRecord).overall_status || (item as SubmittalRecord).approval_status || 'Opened')
+                                : ((item as RfiRecord).status || 'Opened')
+                            }
+                            tone={detailsView === 'submittals' ? (isSubmittalClosed(item as SubmittalRecord) ? 'success' : 'info') : (isRfiClosed(item as RfiRecord) ? 'success' : 'info')}
+                          />
+                          {isPastDue(detailsView === 'submittals' ? (item as SubmittalRecord).due_date : (item as RfiRecord).response_due) ? (
+                            <StatusBadge label="Late" tone="danger" />
+                          ) : isDueWithinSevenDays(detailsView === 'submittals' ? (item as SubmittalRecord).due_date : (item as RfiRecord).response_due) ? (
+                            <StatusBadge label="Due This Week" tone="warning" />
+                          ) : null}
+                        </div>
                         <button
                           type="button"
                           onClick={() => {
-                            if (detailsView === 'submittals') {
+                          if (detailsView === 'submittals') {
+                              if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Continue without saving?')) return
                               const selected = item as SubmittalRecord
                               setSelectedSubmittalDetailId(selected.id)
                               setSubmittalDraft({ ...selected })
                               onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${selected.id}`)
                             } else {
+                              if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Continue without saving?')) return
                               const selected = item as RfiRecord
                               setSelectedRfiDetailId(selected.id)
                               setRfiDraft({ ...selected })
@@ -742,20 +911,32 @@ export default function ProjectsPanel({
                                 ? ((item as SubmittalRecord).submittal_number || (item as SubmittalRecord).subject || 'Untitled')
                                 : ((item as RfiRecord).rfi_number || (item as RfiRecord).subject || 'Untitled')}
                             </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {detailsView === 'submittals'
-                                ? ((item as SubmittalRecord).overall_status || (item as SubmittalRecord).approval_status || 'Opened')
-                                : ((item as RfiRecord).status || 'Opened')}
-                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <StatusBadge
+                                label={
+                                  detailsView === 'submittals'
+                                    ? ((item as SubmittalRecord).overall_status || (item as SubmittalRecord).approval_status || 'Opened')
+                                    : ((item as RfiRecord).status || 'Opened')
+                                }
+                                tone={detailsView === 'submittals' ? (isSubmittalClosed(item as SubmittalRecord) ? 'success' : 'info') : (isRfiClosed(item as RfiRecord) ? 'success' : 'info')}
+                              />
+                              {isPastDue(detailsView === 'submittals' ? (item as SubmittalRecord).due_date : (item as RfiRecord).response_due) ? (
+                                <StatusBadge label="Late" tone="danger" />
+                              ) : isDueWithinSevenDays(detailsView === 'submittals' ? (item as SubmittalRecord).due_date : (item as RfiRecord).response_due) ? (
+                                <StatusBadge label="Due This Week" tone="warning" />
+                              ) : null}
+                            </div>
                             <button
                               type="button"
                               onClick={() => {
                                 if (detailsView === 'submittals') {
+                                  if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Continue without saving?')) return
                                   const selected = item as SubmittalRecord
                                   setSelectedSubmittalDetailId(selected.id)
                                   setSubmittalDraft({ ...selected })
                                   onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${selected.id}`)
                                 } else {
+                                  if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Continue without saving?')) return
                                   const selected = item as RfiRecord
                                   setSelectedRfiDetailId(selected.id)
                                   setRfiDraft({ ...selected })
@@ -772,10 +953,20 @@ export default function ProjectsPanel({
                     </div>
                   ))}
 
-                  {detailItems.length === 0 ? (
-                    <article className="detail-card relative z-10 mx-auto mt-8 w-full max-w-md rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
-                      No {detailsView} found for the selected filter.
-                    </article>
+                  {searchedDetailItems.length === 0 ? (
+                    <div className="relative z-10 mx-auto mt-8 w-full max-w-md">
+                      <EmptyState
+                        title={`No ${detailsView} match your filters`}
+                        description="Try changing open/closed, timing filter, or search query."
+                        ctaLabel={detailsView === 'submittals' ? 'Show All Submittals' : 'Show All RFIs'}
+                        onCta={() => {
+                          setDetailSearch('')
+                          setDetailTimingFilter('all')
+                          if (detailsView === 'submittals') setSubmittalFilter('opened')
+                          if (detailsView === 'rfis') setRfiFilter('opened')
+                        }}
+                      />
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -785,28 +976,30 @@ export default function ProjectsPanel({
       ) : null}
       {!selectedProject ? (
       <>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-900">{editingProjectId ? 'Edit Project' : 'Projects'}</h2>
-        <button
-          type="button"
-          onClick={() => {
-            if (showForm && !editingProjectId) {
-              setShowForm(false)
-              return
-            }
-            setEditingProjectId(null)
-            setForm(emptyProjectForm)
-            setSelectedEorType(defaultEorType)
-            setAorInput('')
-            setEorInput('')
-            setNoteInput('')
-            setShowForm(true)
-          }}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-        >
-          {showForm ? 'Hide Form' : 'Add Project'}
-        </button>
-      </div>
+      <SectionHeader
+        title={editingProjectId ? 'Edit Project' : 'Projects'}
+        subtitle="Manage project records, assign team roles, and open detail pages."
+        actions={
+          <PrimaryButton
+            type="button"
+            onClick={() => {
+              if (showForm && !editingProjectId) {
+                setShowForm(false)
+                return
+              }
+              setEditingProjectId(null)
+              setForm(emptyProjectForm)
+              setSelectedEorType(defaultEorType)
+              setAorInput('')
+              setEorInput('')
+              setNoteInput('')
+              setShowForm(true)
+            }}
+          >
+            {showForm ? 'Hide Form' : 'Add Project'}
+          </PrimaryButton>
+        }
+      />
       {showForm ? (
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {[
@@ -1059,8 +1252,8 @@ export default function ProjectsPanel({
       </form>
       ) : null}
 
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+      <div className="ui-scroll mt-6 overflow-x-auto">
+        <table className="ui-table min-w-[900px]">
           <thead>
             <tr className="bg-slate-100">
               {['Project ID', 'Project Name', 'Developer', 'Status', 'Priority', 'Actions'].map((head) => (
@@ -1133,6 +1326,18 @@ export default function ProjectsPanel({
                 </td>
               </tr>
             ))}
+            {projects.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="border px-3 py-8">
+                  <EmptyState
+                    title="No projects yet"
+                    description="Start by creating a project. Then you can open Project Details, Submittals and RFIs."
+                    ctaLabel="Add Project"
+                    onCta={() => setShowForm(true)}
+                  />
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

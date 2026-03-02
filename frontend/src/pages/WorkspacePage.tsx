@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import DashboardPanel from '../components/workspace/DashboardPanel'
 import ProjectsPanel from '../components/workspace/ProjectsPanel'
@@ -87,6 +87,7 @@ export default function WorkspacePage({
 }: WorkspacePageProps) {
   const [menuOpen, setMenuOpen] = useState(true)
   const [pathname, setPathname] = useState(() => window.location.pathname)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const onPopState = () => setPathname(window.location.pathname)
@@ -97,6 +98,18 @@ export default function WorkspacePage({
     }
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      if (window.innerWidth >= 768 || !menuOpen) return
+      if (!menuRef.current) return
+      if (!menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [menuOpen])
 
   const route = useMemo(() => parsePath(pathname), [pathname])
 
@@ -115,7 +128,7 @@ export default function WorkspacePage({
   ]
 
   return (
-    <div className="neo-dashboard min-h-screen bg-[#151823] px-4 py-6 md:px-8">
+    <div className="neo-dashboard min-h-screen bg-[#151823] px-3 py-5 md:px-8 md:py-6">
       <div
         className={`mx-auto grid w-full max-w-[1500px] grid-cols-1 gap-3 rounded-[26px] border border-white/5 bg-[linear-gradient(130deg,#141726,#1a1e2f)] p-3 shadow-[0_40px_80px_rgba(0,0,0,0.45)] ${
           menuOpen ? 'md:grid-cols-[60px_220px_1fr]' : 'md:grid-cols-[60px_1fr]'
@@ -145,7 +158,10 @@ export default function WorkspacePage({
           <span className="mb-1 text-xs text-[#7b83a8]">*</span>
         </aside>
 
-        <aside className={`${menuOpen ? 'block' : 'hidden'} rounded-2xl bg-[#111528] p-4 md:p-5`}>
+        <aside
+          ref={menuRef}
+          className={`${menuOpen ? 'block' : 'hidden'} fixed inset-y-3 left-3 z-40 w-[250px] rounded-2xl bg-[#111528] p-4 shadow-2xl md:static md:w-auto md:p-5 md:shadow-none`}
+        >
           <div className="mb-4 border-b border-white/10 pb-4">
             <p className="text-xs uppercase tracking-[0.2em] text-[#8f98bf]">MG3 Group</p>
             <p className="mt-1 text-sm font-semibold text-[#dbe2ff]">Sales Workspace</p>
@@ -173,21 +189,39 @@ export default function WorkspacePage({
             </button>
           </div>
         </aside>
+        {menuOpen ? <button type="button" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-30 bg-black/35 md:hidden" aria-label="Close menu overlay" /> : null}
 
         <main className="rounded-2xl bg-[#101426] p-4 md:p-5">
-          <header className="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-[#1a1f35] p-3">
+          <header className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/5 bg-[#1a1f35] p-3">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-[#dbe2ff] md:hidden"
+            >
+              Menu
+            </button>
             <label className="min-w-[220px] flex-1">
               <input
                 readOnly
-                value="Search here..."
-                className="w-full rounded-lg border border-white/5 bg-[#111528] px-3 py-2 text-sm text-[#7f89ae]"
+                aria-label="Workspace search"
+                placeholder="Search projects, submittals, RFIs..."
+                className="w-full rounded-lg border border-white/10 bg-[#111528] px-3 py-2 text-sm text-[#c8d2f2] placeholder:text-[#7f89ae]"
               />
             </label>
             <span className="rounded-full bg-[#101426] px-3 py-1 text-xs text-[#9da7cd]">Today</span>
             <span className="rounded-full bg-[#101426] px-3 py-1 text-xs text-[#9da7cd]">{user.username}</span>
           </header>
 
-          {message ? <p className="mb-3 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">{message}</p> : null}
+          {message ? (
+            <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 shadow-lg">
+              <div className="flex items-start justify-between gap-3">
+                <p>{message}</p>
+                <button type="button" onClick={() => setMessage('')} className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {route.tab === 'dashboard' ? (
             <DashboardPanel summary={summary} projects={projects} submittals={submittals} rfis={rfis} onNavigate={navigate} />
