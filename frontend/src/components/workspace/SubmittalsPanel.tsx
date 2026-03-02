@@ -129,6 +129,7 @@ const emptyForm: Omit<SubmittalRecord, 'id'> = {
 export default function SubmittalsPanel({ token, projects, submittals, setMessage, refreshWorkspace }: SubmittalsPanelProps) {
   const [form, setForm] = useState<Omit<SubmittalRecord, 'id'>>(emptyForm)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [projectSearch, setProjectSearch] = useState('')
   const [showProjectSuggestions, setShowProjectSuggestions] = useState(false)
   const [subcontractors, setSubcontractors] = useState<SubcontractorRecord[]>([])
@@ -256,12 +257,37 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     setApproverInput('')
     setNoteInput('')
     setSelectedEorType('Civil EOR')
+    setShowForm(false)
     await refreshWorkspace(token)
   }
 
   return (
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-slate-900">{editingId ? 'Edit Submittal' : 'New Submittal'}</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold text-slate-900">{editingId ? 'Edit Submittal' : 'Submittals'}</h2>
+        <button
+          type="button"
+          onClick={() => {
+            if (showForm && !editingId) {
+              setShowForm(false)
+              return
+            }
+            setEditingId(null)
+            setForm(emptyForm)
+            setProjectSearch('')
+            setSelectedProjectEorOption('')
+            setSentToSubcontractorInput('')
+            setApproverInput('')
+            setNoteInput('')
+            setSelectedEorType('Civil EOR')
+            setShowForm(true)
+          }}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+        >
+          {showForm ? 'Hide Form' : 'Add Submittal'}
+        </button>
+      </div>
+      {showForm ? (
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm">Project (search by name)
           <div className="relative mt-1">
@@ -620,6 +646,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
           ) : null}
         </div>
       </form>
+      ) : null}
 
       <div className="mt-6 overflow-x-auto">
         <table className="w-full min-w-[1000px] border-collapse text-sm">
@@ -636,6 +663,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
+                        setShowForm(true)
                         setEditingId(item.id)
                         setForm({ ...item })
                         setProjectSearch(item.project_id ? (projectNameById[item.project_id] ?? '') : '')

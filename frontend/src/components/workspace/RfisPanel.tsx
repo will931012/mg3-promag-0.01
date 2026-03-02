@@ -78,6 +78,7 @@ const emptyForm: Omit<RfiRecord, 'id'> = {
 export default function RfisPanel({ token, projects, rfis, setMessage, refreshWorkspace }: RfisPanelProps) {
   const [form, setForm] = useState<Omit<RfiRecord, 'id'>>(emptyForm)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [projectSearch, setProjectSearch] = useState('')
   const [showProjectSuggestions, setShowProjectSuggestions] = useState(false)
   const [subcontractors, setSubcontractors] = useState<SubcontractorRecord[]>([])
@@ -185,12 +186,36 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
     setSentToSubcontractorInput('')
     setDescriptionInput('')
     setSelectedEorType('Civil EOR')
+    setShowForm(false)
     await refreshWorkspace(token)
   }
 
   return (
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-slate-900">{editingId ? 'Edit RFI' : 'New RFI'}</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold text-slate-900">{editingId ? 'Edit RFI' : 'RFIs'}</h2>
+        <button
+          type="button"
+          onClick={() => {
+            if (showForm && !editingId) {
+              setShowForm(false)
+              return
+            }
+            setEditingId(null)
+            setForm(emptyForm)
+            setProjectSearch('')
+            setSelectedProjectEorOption('')
+            setSentToSubcontractorInput('')
+            setDescriptionInput('')
+            setSelectedEorType('Civil EOR')
+            setShowForm(true)
+          }}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+        >
+          {showForm ? 'Hide Form' : 'Add RFI'}
+        </button>
+      </div>
+      {showForm ? (
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm">Project (search by name)
           <div className="relative mt-1">
@@ -476,6 +501,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
           ) : null}
         </div>
       </form>
+      ) : null}
 
       <div className="mt-6 overflow-x-auto">
         <table className="w-full min-w-[900px] border-collapse text-sm">
@@ -492,6 +518,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
+                        setShowForm(true)
                         setEditingId(item.id)
                         setForm({ ...item })
                         setProjectSearch(item.project_id ? (projectNameById[item.project_id] ?? '') : '')
