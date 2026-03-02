@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import DashboardPanel from '../components/workspace/DashboardPanel'
 import ProjectsPanel from '../components/workspace/ProjectsPanel'
@@ -86,18 +87,15 @@ export default function WorkspacePage({
   refreshWorkspace,
 }: WorkspacePageProps) {
   const [menuOpen, setMenuOpen] = useState(true)
-  const [pathname, setPathname] = useState(() => window.location.pathname)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const location = useLocation()
+  const navigateTo = useNavigate()
 
   useEffect(() => {
-    const onPopState = () => setPathname(window.location.pathname)
-    window.addEventListener('popstate', onPopState)
-    if (window.location.pathname === '/') {
-      window.history.replaceState({}, '', '/dashboard')
-      setPathname('/dashboard')
+    if (location.pathname === '/') {
+      navigateTo('/dashboard', { replace: true })
     }
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [])
+  }, [location.pathname, navigateTo])
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -111,13 +109,12 @@ export default function WorkspacePage({
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [menuOpen])
 
-  const route = useMemo(() => parsePath(pathname), [pathname])
+  const route = useMemo(() => parsePath(location.pathname), [location.pathname])
   const isErrorMessage = /fail|error|unable|invalid/i.test(message)
 
   const navigate = (nextPath: string) => {
-    if (window.location.pathname === nextPath) return
-    window.history.pushState({}, '', nextPath)
-    setPathname(nextPath)
+    if (location.pathname === nextPath) return
+    navigateTo(nextPath)
   }
 
   const navItems: Array<[TabId, string]> = [
