@@ -39,6 +39,8 @@ const defaultEorType: EorType = 'Civil EOR'
 const MULTI_VALUE_SEPARATOR = ' | '
 const PROJECT_STATUS_OPTIONS = ['Preliminary', 'Under Construction', 'Substantial Completion'] as const
 const PROJECT_PRIORITY_OPTIONS = ['High', 'Medium', 'Low'] as const
+const SUBMITTAL_STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as const
+const RFI_STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as const
 const NOTES_SEPARATOR = '\n\n'
 
 function splitMultiValues(value: string | null): string[] {
@@ -519,14 +521,36 @@ export default function ProjectsPanel({
             subtitle={selectedSubmittalDetail || selectedRfiDetail ? 'Edit and save changes with clear navigation controls.' : 'Switch between Submittals and RFIs for this project.'}
           />
           {selectedSubmittalDetail ? (
-            <article className="detail-card mx-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-md">
+            <article className="detail-card mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-5 shadow-md">
               <h3 className="text-2xl font-semibold text-slate-900">Submittal Detail Page</h3>
               <p className="mt-1 text-sm text-slate-600">Edit and save this submittal from here.</p>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <label className="text-sm text-slate-700">Project ID
+                  <input
+                    value={submittalDraft?.project_id ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, project_id: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Division CSI
+                  <input
+                    value={submittalDraft?.division_csi ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, division_csi: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
                 <label className="text-sm text-slate-700">Submittal #
                   <input
                     value={submittalDraft?.submittal_number ?? ''}
                     onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, submittal_number: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Date Received
+                  <input
+                    type="date"
+                    value={submittalDraft?.date_received ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, date_received: e.target.value } : prev))}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                   />
                 </label>
@@ -552,12 +576,72 @@ export default function ProjectsPanel({
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                   />
                 </label>
-                <label className="text-sm text-slate-700">Overall Status
+                <label className="text-sm text-slate-700">Sent To AOR
                   <input
+                    value={submittalDraft?.sent_to_aor ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, sent_to_aor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Sent To EOR
+                  <input
+                    value={submittalDraft?.sent_to_eor ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, sent_to_eor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Sent To Subcontractor
+                  <input
+                    value={submittalDraft?.sent_to_subcontractor ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, sent_to_subcontractor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Sent To Date
+                  <input
+                    type="date"
+                    value={submittalDraft?.sent_to_date ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, sent_to_date: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Approvers
+                  <input
+                    value={submittalDraft?.approvers ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, approvers: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Approval Status
+                  <select
+                    value={submittalDraft?.approval_status ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, approval_status: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  >
+                    <option value="">Select status</option>
+                    {SUBMITTAL_STATUS_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm text-slate-700">Revision
+                  <input
+                    value={submittalDraft?.revision ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, revision: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Overall Status
+                  <select
                     value={submittalDraft?.overall_status ?? ''}
                     onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, overall_status: e.target.value } : prev))}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
-                  />
+                  >
+                    <option value="">Select status</option>
+                    {SUBMITTAL_STATUS_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="text-sm text-slate-700">Responsible
                   <input
@@ -566,7 +650,14 @@ export default function ProjectsPanel({
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                   />
                 </label>
-                <label className="text-sm text-slate-700 md:col-span-2">Notes
+                <label className="text-sm text-slate-700">Workflow Stage
+                  <input
+                    value={submittalDraft?.workflow_stage ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, workflow_stage: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700 lg:col-span-3">Notes
                   <textarea
                     value={submittalDraft?.notes ?? ''}
                     onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, notes: e.target.value } : prev))}
@@ -621,10 +712,17 @@ export default function ProjectsPanel({
               </div>
             </article>
           ) : selectedRfiDetail ? (
-            <article className="detail-card mx-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-md">
+            <article className="detail-card mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-5 shadow-md">
               <h3 className="text-2xl font-semibold text-slate-900">RFI Detail Page</h3>
               <p className="mt-1 text-sm text-slate-600">Edit and save this RFI from here.</p>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <label className="text-sm text-slate-700">Project ID
+                  <input
+                    value={rfiDraft?.project_id ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, project_id: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
                 <label className="text-sm text-slate-700">RFI #
                   <input
                     value={rfiDraft?.rfi_number ?? ''}
@@ -633,16 +731,29 @@ export default function ProjectsPanel({
                   />
                 </label>
                 <label className="text-sm text-slate-700">Status
-                  <input
+                  <select
                     value={rfiDraft?.status ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, status: e.target.value } : prev))}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
-                  />
+                  >
+                    <option value="">Select status</option>
+                    {RFI_STATUS_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="text-sm text-slate-700">Subject
                   <input
                     value={rfiDraft?.subject ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, subject: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Date Sent
+                  <input
+                    type="date"
+                    value={rfiDraft?.date_sent ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, date_sent: e.target.value } : prev))}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                   />
                 </label>
@@ -654,10 +765,47 @@ export default function ProjectsPanel({
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                   />
                 </label>
+                <label className="text-sm text-slate-700">Date Answered
+                  <input
+                    type="date"
+                    value={rfiDraft?.date_answered ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, date_answered: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
                 <label className="text-sm text-slate-700">From Contractor
                   <input
                     value={rfiDraft?.from_contractor ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, from_contractor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Sent To AOR
+                  <input
+                    value={rfiDraft?.sent_to_aor ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, sent_to_aor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Sent To EOR
+                  <input
+                    value={rfiDraft?.sent_to_eor ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, sent_to_eor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Sent To Subcontractor
+                  <input
+                    value={rfiDraft?.sent_to_subcontractor ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, sent_to_subcontractor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Sent To Date
+                  <input
+                    type="date"
+                    value={rfiDraft?.sent_to_date ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, sent_to_date: e.target.value } : prev))}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                   />
                 </label>
@@ -668,10 +816,18 @@ export default function ProjectsPanel({
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                   />
                 </label>
-                <label className="text-sm text-slate-700 md:col-span-2">Description
+                <label className="text-sm text-slate-700 lg:col-span-3">Description
                   <textarea
                     value={rfiDraft?.description ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
+                    rows={4}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700 lg:col-span-3">Notes
+                  <textarea
+                    value={rfiDraft?.notes ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, notes: e.target.value } : prev))}
                     rows={4}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                   />
