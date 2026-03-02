@@ -44,10 +44,10 @@ export default function WorkspacePage({
 
   const navItems: Array<[TabId, string]> = [
     ['dashboard', 'Dashboard'],
-    ['projects', 'Profile'],
-    ['submittals', 'Order'],
-    ['rfis', 'Sales Report'],
-    ['users', 'Settings'],
+    ['projects', 'Projects'],
+    ['submittals', 'Submittals'],
+    ['rfis', 'RFIs'],
+    ['users', 'Users'],
   ]
 
   return (
