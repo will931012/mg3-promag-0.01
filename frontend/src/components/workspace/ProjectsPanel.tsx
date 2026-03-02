@@ -260,12 +260,12 @@ export default function ProjectsPanel({
     [projectRfis, rfiFilter]
   )
   const selectedSubmittalDetail = useMemo(
-    () => projectSubmittals.find((item) => item.id === selectedSubmittalDetailId) ?? null,
-    [projectSubmittals, selectedSubmittalDetailId]
+    () => submittals.find((item) => item.id === selectedSubmittalDetailId) ?? null,
+    [submittals, selectedSubmittalDetailId]
   )
   const selectedRfiDetail = useMemo(
-    () => projectRfis.find((item) => item.id === selectedRfiDetailId) ?? null,
-    [projectRfis, selectedRfiDetailId]
+    () => rfis.find((item) => item.id === selectedRfiDetailId) ?? null,
+    [rfis, selectedRfiDetailId]
   )
   const detailItems = useMemo<Array<SubmittalRecord | RfiRecord>>(
     () => (detailsView === 'submittals' ? filteredProjectSubmittals : filteredProjectRfis),
