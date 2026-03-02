@@ -240,6 +240,18 @@ export default function ProjectsPanel({
     () => projectRfis.find((item) => item.id === selectedRfiDetailId) ?? null,
     [projectRfis, selectedRfiDetailId]
   )
+  const detailItems = useMemo<Array<SubmittalRecord | RfiRecord>>(
+    () => (detailsView === 'submittals' ? filteredProjectSubmittals : filteredProjectRfis),
+    [detailsView, filteredProjectSubmittals, filteredProjectRfis]
+  )
+  const firstDetailRow = useMemo(() => detailItems.slice(0, 2), [detailItems])
+  const extraDetailRows = useMemo(() => {
+    const rows: Array<Array<SubmittalRecord | RfiRecord>> = []
+    for (let index = 2; index < detailItems.length; index += 2) {
+      rows.push(detailItems.slice(index, index + 2))
+    }
+    return rows
+  }, [detailItems])
 
   useEffect(() => {
     setSelectedProjectId(routeProjectId)
@@ -647,48 +659,121 @@ export default function ProjectsPanel({
                 </div>
               </article>
 
-              <div className="mt-6 overflow-x-auto pb-2">
-                <div className="relative mx-auto flex min-w-max items-stretch gap-6 px-2">
-                  <span className="absolute left-5 right-5 top-24 h-[2px] bg-gradient-to-r from-brand-700/30 via-brand-700 to-brand-700/30" />
-                  <article className="detail-card relative z-10 w-[260px] rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
+              <div className="mt-6">
+                <div className="relative mx-auto max-w-5xl">
+                  {firstDetailRow.length > 0 ? (
+                    <>
+                      <span className="absolute left-1/2 top-[130px] hidden h-[46px] w-[2px] -translate-x-1/2 bg-brand-700/35 md:block" />
+                      <span className="absolute left-1/2 top-[176px] hidden h-[2px] w-[36%] -translate-x-full -rotate-[20deg] bg-brand-700/30 md:block" />
+                      <span className="absolute left-1/2 top-[176px] hidden h-[2px] w-[36%] rotate-[20deg] bg-brand-700/30 md:block" />
+                    </>
+                  ) : null}
+
+                  <article className="detail-card relative z-10 mx-auto w-[260px] rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Project</p>
                     <p className="mt-2 text-lg font-semibold text-slate-900">{selectedProject.project_name}</p>
                     <p className="mt-1 text-xs text-slate-500">{selectedProject.project_id}</p>
                   </article>
-                  {(detailsView === 'submittals' ? filteredProjectSubmittals : filteredProjectRfis).map((item, index) => (
-                    <article key={`${detailsView}-${item.id}`} className="detail-card relative z-10 w-[260px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style={{ animationDelay: `${index * 70}ms` }}>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                        {detailsView === 'submittals' ? `Submittal #${item.id}` : `RFI #${item.id}`}
-                      </p>
-                      <p className="mt-2 text-base font-semibold text-slate-900">
-                        {detailsView === 'submittals'
-                          ? ((item as SubmittalRecord).submittal_number || (item as SubmittalRecord).subject || 'Untitled')
-                          : ((item as RfiRecord).rfi_number || (item as RfiRecord).subject || 'Untitled')}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {detailsView === 'submittals'
-                          ? ((item as SubmittalRecord).overall_status || (item as SubmittalRecord).approval_status || 'Opened')
-                          : ((item as RfiRecord).status || 'Opened')}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (detailsView === 'submittals') {
-                            onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${(item as SubmittalRecord).id}`)
-                            setSubmittalDraft({ ...(item as SubmittalRecord) })
-                          } else {
-                            onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${(item as RfiRecord).id}`)
-                            setRfiDraft({ ...(item as RfiRecord) })
-                          }
-                        }}
-                        className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline"
+
+                  <div className="mt-14 grid gap-4 md:grid-cols-2">
+                    {firstDetailRow.map((item, index) => (
+                      <article
+                        key={`${detailsView}-${item.id}`}
+                        className="detail-card relative z-10 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                        style={{ animationDelay: `${index * 70}ms` }}
                       >
-                        Open {detailsView === 'submittals' ? 'Submittal Detail Page' : 'RFI Detail Page'}
-                      </button>
-                    </article>
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                          {detailsView === 'submittals' ? `Submittal #${item.id}` : `RFI #${item.id}`}
+                        </p>
+                        <p className="mt-2 text-base font-semibold text-slate-900">
+                          {detailsView === 'submittals'
+                            ? ((item as SubmittalRecord).submittal_number || (item as SubmittalRecord).subject || 'Untitled')
+                            : ((item as RfiRecord).rfi_number || (item as RfiRecord).subject || 'Untitled')}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {detailsView === 'submittals'
+                            ? ((item as SubmittalRecord).overall_status || (item as SubmittalRecord).approval_status || 'Opened')
+                            : ((item as RfiRecord).status || 'Opened')}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (detailsView === 'submittals') {
+                              const selected = item as SubmittalRecord
+                              setSelectedSubmittalDetailId(selected.id)
+                              setSubmittalDraft({ ...selected })
+                              onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${selected.id}`)
+                            } else {
+                              const selected = item as RfiRecord
+                              setSelectedRfiDetailId(selected.id)
+                              setRfiDraft({ ...selected })
+                              onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${selected.id}`)
+                            }
+                          }}
+                          className="mt-3 inline-flex rounded-lg bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-800"
+                        >
+                          Open {detailsView === 'submittals' ? 'Submittal Detail Page' : 'RFI Detail Page'}
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+
+                  {extraDetailRows.map((row, rowIndex) => (
+                    <div key={`${detailsView}-extra-row-${rowIndex}`} className="relative mt-10">
+                      <span className="absolute left-1/2 top-[-26px] hidden h-[26px] w-[2px] -translate-x-1/2 bg-brand-700/25 md:block" />
+                      {row.length === 2 ? (
+                        <>
+                          <span className="absolute left-1/2 top-[20px] hidden h-[2px] w-[34%] -translate-x-full -rotate-[16deg] bg-brand-700/25 md:block" />
+                          <span className="absolute left-1/2 top-[20px] hidden h-[2px] w-[34%] rotate-[16deg] bg-brand-700/25 md:block" />
+                        </>
+                      ) : null}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {row.map((item, index) => (
+                          <article
+                            key={`${detailsView}-${item.id}`}
+                            className="detail-card relative z-10 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                            style={{ animationDelay: `${(rowIndex * 2 + index + 2) * 70}ms` }}
+                          >
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                              {detailsView === 'submittals' ? `Submittal #${item.id}` : `RFI #${item.id}`}
+                            </p>
+                            <p className="mt-2 text-base font-semibold text-slate-900">
+                              {detailsView === 'submittals'
+                                ? ((item as SubmittalRecord).submittal_number || (item as SubmittalRecord).subject || 'Untitled')
+                                : ((item as RfiRecord).rfi_number || (item as RfiRecord).subject || 'Untitled')}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {detailsView === 'submittals'
+                                ? ((item as SubmittalRecord).overall_status || (item as SubmittalRecord).approval_status || 'Opened')
+                                : ((item as RfiRecord).status || 'Opened')}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (detailsView === 'submittals') {
+                                  const selected = item as SubmittalRecord
+                                  setSelectedSubmittalDetailId(selected.id)
+                                  setSubmittalDraft({ ...selected })
+                                  onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${selected.id}`)
+                                } else {
+                                  const selected = item as RfiRecord
+                                  setSelectedRfiDetailId(selected.id)
+                                  setRfiDraft({ ...selected })
+                                  onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${selected.id}`)
+                                }
+                              }}
+                              className="mt-3 inline-flex rounded-lg bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-800"
+                            >
+                              Open {detailsView === 'submittals' ? 'Submittal Detail Page' : 'RFI Detail Page'}
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                  {(detailsView === 'submittals' ? filteredProjectSubmittals : filteredProjectRfis).length === 0 ? (
-                    <article className="detail-card relative z-10 w-[300px] rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+
+                  {detailItems.length === 0 ? (
+                    <article className="detail-card relative z-10 mx-auto mt-8 w-full max-w-md rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
                       No {detailsView} found for the selected filter.
                     </article>
                   ) : null}
