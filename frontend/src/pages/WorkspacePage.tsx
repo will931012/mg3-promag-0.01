@@ -40,6 +40,8 @@ export default function WorkspacePage({
   refreshWorkspace,
 }: WorkspacePageProps) {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
+  const [menuOpen, setMenuOpen] = useState(true)
+
   const navItems: Array<[TabId, string]> = [
     ['dashboard', 'Dashboard'],
     ['projects', 'Profile'],
@@ -50,26 +52,36 @@ export default function WorkspacePage({
 
   return (
     <div className="neo-dashboard min-h-screen bg-[#151823] px-4 py-6 md:px-8">
-      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 gap-3 rounded-[26px] border border-white/5 bg-[linear-gradient(130deg,#141726,#1a1e2f)] p-3 shadow-[0_40px_80px_rgba(0,0,0,0.45)] md:grid-cols-[60px_220px_1fr]">
+      <div
+        className={`mx-auto grid w-full max-w-[1500px] grid-cols-1 gap-3 rounded-[26px] border border-white/5 bg-[linear-gradient(130deg,#141726,#1a1e2f)] p-3 shadow-[0_40px_80px_rgba(0,0,0,0.45)] ${
+          menuOpen ? 'md:grid-cols-[60px_220px_1fr]' : 'md:grid-cols-[60px_1fr]'
+        }`}
+      >
         <aside className="hidden rounded-2xl bg-[#0f1220] p-3 md:flex md:flex-col md:items-center md:justify-between">
-          <div className="mt-1 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((prev) => !prev)}
+            className="mt-1 flex items-center gap-1 rounded-full p-1 hover:bg-white/10"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            title={menuOpen ? 'Close menu' : 'Open menu'}
+          >
             <span className="h-2 w-2 rounded-full bg-[#ff5f57]" />
             <span className="h-2 w-2 rounded-full bg-[#febc2e]" />
             <span className="h-2 w-2 rounded-full bg-[#28c840]" />
-          </div>
+          </button>
           <div className="flex flex-col gap-4 text-[#7b83a8]">
-            <span>◦</span>
-            <span>◦</span>
-            <span>◦</span>
-            <span>◦</span>
-            <span>◦</span>
-            <span>◦</span>
-            <span>◦</span>
+            <span>o</span>
+            <span>o</span>
+            <span>o</span>
+            <span>o</span>
+            <span>o</span>
+            <span>o</span>
+            <span>o</span>
           </div>
-          <span className="mb-1 text-xs text-[#7b83a8]">•</span>
+          <span className="mb-1 text-xs text-[#7b83a8]">*</span>
         </aside>
 
-        <aside className="rounded-2xl bg-[#111528] p-4 md:p-5">
+        <aside className={`${menuOpen ? 'block' : 'hidden'} rounded-2xl bg-[#111528] p-4 md:p-5`}>
           <div className="mb-4 border-b border-white/10 pb-4">
             <p className="text-xs uppercase tracking-[0.2em] text-[#8f98bf]">MG3 Group</p>
             <p className="mt-1 text-sm font-semibold text-[#dbe2ff]">Sales Workspace</p>
@@ -84,7 +96,7 @@ export default function WorkspacePage({
                 }`}
               >
                 <span>{label}</span>
-                <span className="text-xs">›</span>
+                <span className="text-xs">{'>'}</span>
               </button>
             ))}
           </nav>
