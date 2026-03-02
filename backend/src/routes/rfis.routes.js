@@ -13,6 +13,23 @@ const getPgErrorDetail = (error) => ({
   detail: error?.detail ?? null,
   message: error?.message ?? "Unknown database error",
 });
+const normalizeLifecycleStatus = (rawLifecycleStatus, status) => {
+  const explicit = asOptionalText(rawLifecycleStatus).toLowerCase();
+  if (explicit === "opened" || explicit === "closed") return explicit;
+
+  const statusText = asOptionalText(status).toLowerCase();
+  if (!statusText) return "opened";
+  if (
+    statusText.includes("approved") ||
+    statusText.includes("closed") ||
+    statusText.includes("complete") ||
+    statusText.includes("resolved") ||
+    statusText.includes("answered")
+  ) {
+    return "closed";
+  }
+  return "opened";
+};
 
 const selectRfiSql = `
   SELECT
@@ -30,6 +47,7 @@ const selectRfiSql = `
     response_due,
     date_answered,
     status,
+    lifecycle_status,
     CASE
       WHEN status = 'Approved' THEN (COALESCE(date_answered, CURRENT_DATE) - created_at::date)::int
       ELSE (CURRENT_DATE - created_at::date)::int
@@ -64,6 +82,7 @@ router.post("/", async (req, res) => {
     response_due: rawResponseDue,
     date_answered: rawDateAnswered,
     status: rawStatus,
+    lifecycle_status: rawLifecycleStatus,
     responsible: rawResponsible,
     notes: rawNotes
   } = req.body || {};
@@ -80,6 +99,7 @@ router.post("/", async (req, res) => {
   const sent_to_date_input = asNullableDate(rawSentToDate);
   const response_due = asNullableDate(rawResponseDue);
   const status = asOptionalText(rawStatus);
+  const lifecycle_status = normalizeLifecycleStatus(rawLifecycleStatus, rawStatus);
   const responsible = asOptionalText(rawResponsible);
   const notes = asOptionalText(rawNotes);
   const hasSentToRecipient = Boolean(sent_to_aor || sent_to_eor);
@@ -91,11 +111,11 @@ router.post("/", async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO rfi_tracker (
         project_id, rfi_number, subject, description, from_contractor, date_sent, sent_to_aor, sent_to_eor,
-        sent_to_subcontractor, sent_to_date, response_due, date_answered, status, responsible, notes
+        sent_to_subcontractor, sent_to_date, response_due, date_answered, status, lifecycle_status, responsible, notes
       )
       VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,
-        $10,$11,$12,$13,$14,$15
+        $10,$11,$12,$13,$14,$15,$16
       )
       RETURNING
         id,
@@ -112,6 +132,7 @@ router.post("/", async (req, res) => {
         response_due,
         date_answered,
         status,
+        lifecycle_status,
         CASE
           WHEN status = 'Approved' THEN (COALESCE(date_answered, CURRENT_DATE) - created_at::date)::int
           ELSE (CURRENT_DATE - created_at::date)::int
@@ -132,6 +153,7 @@ router.post("/", async (req, res) => {
         response_due,
         date_answered,
         status,
+        lifecycle_status,
         responsible,
         notes
       ]
@@ -162,6 +184,7 @@ router.put("/:id", async (req, res) => {
     response_due: rawResponseDue,
     date_answered: rawDateAnswered,
     status: rawStatus,
+    lifecycle_status: rawLifecycleStatus,
     responsible: rawResponsible,
     notes: rawNotes
   } = req.body || {};
@@ -179,6 +202,7 @@ router.put("/:id", async (req, res) => {
   const response_due = asNullableDate(rawResponseDue);
   const date_answered = asNullableDate(rawDateAnswered);
   const status = asOptionalText(rawStatus);
+  const lifecycle_status = normalizeLifecycleStatus(rawLifecycleStatus, rawStatus);
   const responsible = asOptionalText(rawResponsible);
   const notes = asOptionalText(rawNotes);
 
@@ -204,8 +228,9 @@ router.put("/:id", async (req, res) => {
              ELSE $13
            END,
            status = $14,
-           responsible = $15,
-           notes = $16
+           lifecycle_status = $15,
+           responsible = $16,
+           notes = $17
        WHERE id = $1
        RETURNING
          id,
@@ -222,6 +247,7 @@ router.put("/:id", async (req, res) => {
          response_due,         
          date_answered,
          status,
+         lifecycle_status,
          CASE
            WHEN status = 'Approved' THEN (COALESCE(date_answered, CURRENT_DATE) - created_at::date)::int
            ELSE (CURRENT_DATE - created_at::date)::int
@@ -243,6 +269,7 @@ router.put("/:id", async (req, res) => {
         response_due,
         date_answered,
         status,
+        lifecycle_status,
         responsible,
         notes
       ]

@@ -41,6 +41,7 @@ const baseSelect = `
     project_id,
     project_name,
     address,
+    image_url,
     developer,
     aor,
     eor,
@@ -65,6 +66,7 @@ router.post("/", async (req, res) => {
   const {
     project_name,
     address,
+    image_url,
     developer,
     aor,
     eor,
@@ -82,11 +84,11 @@ router.post("/", async (req, res) => {
     const project_id = await generateProjectId(project_name);
     const { rows } = await pool.query(
       `INSERT INTO product_list (
-        project_id, project_name, address, developer, aor, eor, end_date, status, priority, notes
+        project_id, project_name, address, image_url, developer, aor, eor, end_date, status, priority, notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *`,
-      [project_id, project_name, address, developer, aor, eor, end_date, status, priority, notes]
+      [project_id, project_name, address, image_url, developer, aor, eor, end_date, status, priority, notes]
     );
     return res.status(201).json(rows[0]);
   } catch (error) {
@@ -100,6 +102,7 @@ router.put("/:projectId", async (req, res) => {
   const {
     project_name,
     address,
+    image_url,
     developer,
     aor,
     eor,
@@ -114,16 +117,17 @@ router.put("/:projectId", async (req, res) => {
       `UPDATE product_list
        SET project_name = $2,
            address = $3,
-           developer = $4,
-           aor = $5,
-           eor = $6,
-           end_date = $7,
-           status = $8,
-           priority = $9,
-           notes = $10
+           image_url = $4,
+           developer = $5,
+           aor = $6,
+           eor = $7,
+           end_date = $8,
+           status = $9,
+           priority = $10,
+           notes = $11
        WHERE project_id = $1
        RETURNING *`,
-      [projectId, project_name, address, developer, aor, eor, end_date, status, priority, notes]
+      [projectId, project_name, address, image_url, developer, aor, eor, end_date, status, priority, notes]
     );
 
     if (!rows[0]) return res.status(404).json({ detail: "Project not found." });

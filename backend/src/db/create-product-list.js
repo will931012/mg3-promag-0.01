@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS product_list (
   project_id VARCHAR(64) PRIMARY KEY,
   project_name VARCHAR(255) NOT NULL,
   address TEXT,
+  image_url TEXT,
   developer VARCHAR(255),
   aor VARCHAR(255),
   eor VARCHAR(255),

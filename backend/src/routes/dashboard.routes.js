@@ -12,16 +12,24 @@ WITH project_counts AS (
 submittal_base AS (
   SELECT
     due_date,
-    COALESCE(NULLIF(TRIM(overall_status), ''), NULLIF(TRIM(approval_status), ''), 'open') AS status_text
+    COALESCE(
+      NULLIF(TRIM(lifecycle_status), ''),
+      CASE
+        WHEN COALESCE(NULLIF(TRIM(overall_status), ''), NULLIF(TRIM(approval_status), ''), 'open')
+          ~* '^(approved|closed|complete|completed|resolved)$'
+          THEN 'closed'
+        ELSE 'opened'
+      END
+    ) AS lifecycle_status_text
   FROM submittal_tracker
 ),
 submittal_counts AS (
   SELECT
     COUNT(*) FILTER (
-      WHERE status_text !~* '^(approved|closed|complete|completed|resolved)$'
+      WHERE lifecycle_status_text = 'opened'
     )::int AS submittals_open,
     COUNT(*) FILTER (
-      WHERE status_text !~* '^(approved|closed|complete|completed|resolved)$'
+      WHERE lifecycle_status_text = 'opened'
         AND due_date IS NOT NULL
         AND due_date < CURRENT_DATE
     )::int AS submittals_late
@@ -30,16 +38,24 @@ submittal_counts AS (
 rfi_base AS (
   SELECT
     response_due,
-    COALESCE(NULLIF(TRIM(status), ''), 'open') AS status_text
+    COALESCE(
+      NULLIF(TRIM(lifecycle_status), ''),
+      CASE
+        WHEN COALESCE(NULLIF(TRIM(status), ''), 'open')
+          ~* '^(closed|answered|resolved|complete|completed|approved)$'
+          THEN 'closed'
+        ELSE 'opened'
+      END
+    ) AS lifecycle_status_text
   FROM rfi_tracker
 ),
 rfi_counts AS (
   SELECT
     COUNT(*) FILTER (
-      WHERE status_text !~* '^(closed|answered|resolved|complete|completed)$'
+      WHERE lifecycle_status_text = 'opened'
     )::int AS rfis_open,
     COUNT(*) FILTER (
-      WHERE status_text !~* '^(closed|answered|resolved|complete|completed)$'
+      WHERE lifecycle_status_text = 'opened'
         AND response_due IS NOT NULL
         AND response_due < CURRENT_DATE
     )::int AS rfis_overdue_open

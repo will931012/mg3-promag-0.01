@@ -15,6 +15,18 @@ const getPgErrorDetail = (error) => ({
   message: error?.message ?? "Unknown database error",
 });
 
+const normalizeLifecycleStatus = (rawLifecycleStatus, overallStatus, approvalStatus) => {
+  const explicit = asOptionalText(rawLifecycleStatus).toLowerCase();
+  if (explicit === "opened" || explicit === "closed") return explicit;
+
+  const statusText = asOptionalText(overallStatus || approvalStatus).toLowerCase();
+  if (!statusText) return "opened";
+  if (statusText.includes("approved") || statusText.includes("closed") || statusText.includes("complete") || statusText.includes("resolved")) {
+    return "closed";
+  }
+  return "opened";
+};
+
 const selectSubmittalSql = `
   SELECT
     id,
@@ -30,6 +42,7 @@ const selectSubmittalSql = `
     sent_to_date,
     approvers,
     approval_status,
+    lifecycle_status,
     revision,
     due_date,
     CASE WHEN date_received IS NULL THEN NULL ELSE (CURRENT_DATE - date_received)::int END AS days_pending,
@@ -64,6 +77,7 @@ router.post("/", async (req, res) => {
     sent_to_date: rawSentToDate,
     approvers: rawApprovers,
     approval_status: rawApprovalStatus,
+    lifecycle_status: rawLifecycleStatus,
     revision: rawRevision,
     due_date: rawDueDate,
     overall_status: rawOverallStatus,
@@ -86,6 +100,7 @@ router.post("/", async (req, res) => {
   const sent_to_date = hasSentToRecipient ? (sent_to_date_input ?? todayIsoDate()) : sent_to_date_input;
   const approvers = asOptionalText(rawApprovers);
   const approval_status = asOptionalText(rawApprovalStatus);
+  const lifecycle_status = normalizeLifecycleStatus(rawLifecycleStatus, rawOverallStatus, rawApprovalStatus);
   const revision = asOptionalText(rawRevision);
   const due_date = asNullableDate(rawDueDate);
   const overall_status = asOptionalText(rawOverallStatus);
@@ -97,9 +112,9 @@ router.post("/", async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO submittal_tracker (
         project_id, division_csi, submittal_number, subject, contractor, date_received, sent_to_aor, sent_to_eor,
-        sent_to_subcontractor, sent_to_date, approvers, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
+        sent_to_subcontractor, sent_to_date, approvers, approval_status, lifecycle_status, revision, due_date, overall_status, responsible, workflow_stage, notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
       RETURNING
         id,
         project_id,
@@ -114,6 +129,7 @@ router.post("/", async (req, res) => {
         sent_to_date,
         approvers,
         approval_status,
+        lifecycle_status,
         revision,
         due_date,
         CASE WHEN date_received IS NULL THEN NULL ELSE (CURRENT_DATE - date_received)::int END AS days_pending,
@@ -134,6 +150,7 @@ router.post("/", async (req, res) => {
         sent_to_date,
         approvers,
         approval_status,
+        lifecycle_status,
         revision,
         due_date,
         overall_status,
@@ -167,6 +184,7 @@ router.put("/:id", async (req, res) => {
     sent_to_date: rawSentToDate,
     approvers: rawApprovers,
     approval_status: rawApprovalStatus,
+    lifecycle_status: rawLifecycleStatus,
     revision: rawRevision,
     due_date: rawDueDate,
     overall_status: rawOverallStatus,
@@ -187,6 +205,7 @@ router.put("/:id", async (req, res) => {
   const sent_to_date = asNullableDate(rawSentToDate);
   const approvers = asOptionalText(rawApprovers);
   const approval_status = asOptionalText(rawApprovalStatus);
+  const lifecycle_status = normalizeLifecycleStatus(rawLifecycleStatus, rawOverallStatus, rawApprovalStatus);
   const revision = asOptionalText(rawRevision);
   const due_date = asNullableDate(rawDueDate);
   const overall_status = asOptionalText(rawOverallStatus);
@@ -212,12 +231,13 @@ router.put("/:id", async (req, res) => {
            END,
            approvers = $12,
            approval_status = $13,
-           revision = $14,
-           due_date = $15,
-           overall_status = $16,
-           responsible = $17,
-           workflow_stage = $18,
-           notes = $19
+           lifecycle_status = $14,
+           revision = $15,
+           due_date = $16,
+           overall_status = $17,
+           responsible = $18,
+           workflow_stage = $19,
+           notes = $20
        WHERE id = $1
        RETURNING
          id,
@@ -233,6 +253,7 @@ router.put("/:id", async (req, res) => {
          sent_to_date,
          approvers,
          approval_status,
+         lifecycle_status,
          revision,
          due_date,
          CASE WHEN date_received IS NULL THEN NULL ELSE (CURRENT_DATE - date_received)::int END AS days_pending,
@@ -254,6 +275,7 @@ router.put("/:id", async (req, res) => {
         sent_to_date,
         approvers,
         approval_status,
+        lifecycle_status,
         revision,
         due_date,
         overall_status,
@@ -284,4 +306,3 @@ router.delete("/:id", async (req, res) => {
 });
 
 export default router;
-

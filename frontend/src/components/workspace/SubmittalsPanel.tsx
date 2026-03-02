@@ -66,6 +66,13 @@ const OVERALL_STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as
 const MULTI_VALUE_SEPARATOR = ' | '
 const todayIsoDate = () => new Date().toISOString().slice(0, 10)
 const NOTES_SEPARATOR = '\n\n'
+const getSubmittalLifecycleStatus = (status: string | null): 'opened' | 'closed' => {
+  const text = String(status || '').toLowerCase()
+  if (!text) return 'opened'
+  return text.includes('approved') || text.includes('closed') || text.includes('complete') || text.includes('resolved')
+    ? 'closed'
+    : 'opened'
+}
 
 function splitMultiValues(value: string | null): string[] {
   return String(value || '')
@@ -117,6 +124,7 @@ const emptyForm: Omit<SubmittalRecord, 'id'> = {
   sent_to_date: '',
   approvers: '',
   approval_status: '',
+  lifecycle_status: 'opened',
   revision: '',
   due_date: '',
   days_pending: null,
@@ -232,6 +240,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       sent_to_date: toNullableString(form.sent_to_date),
       approvers: toNullableString(form.approvers),
       approval_status: toNullableString(form.approval_status),
+      lifecycle_status: getSubmittalLifecycleStatus(form.overall_status || form.approval_status),
       revision: toNullableString(form.revision),
       due_date: toNullableString(form.due_date),
       days_pending: null,

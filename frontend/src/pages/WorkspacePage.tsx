@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import DashboardPanel from '../components/workspace/DashboardPanel'
 import ProjectsPanel from '../components/workspace/ProjectsPanel'
@@ -25,6 +25,52 @@ type WorkspacePageProps = {
   refreshWorkspace: (token: string) => Promise<void>
 }
 
+type RouteState = {
+  tab: TabId
+  projectId: string | null
+  submittalId: number | null
+  rfiId: number | null
+}
+
+function parsePath(pathname: string): RouteState {
+  const clean = pathname === '/' ? '/dashboard' : pathname
+  const submittalMatch = clean.match(/^\/projects\/([^/]+)\/submittals\/(\d+)$/)
+  if (submittalMatch) {
+    return {
+      tab: 'projects',
+      projectId: decodeURIComponent(submittalMatch[1]),
+      submittalId: Number(submittalMatch[2]),
+      rfiId: null,
+    }
+  }
+
+  const rfiMatch = clean.match(/^\/projects\/([^/]+)\/rfis\/(\d+)$/)
+  if (rfiMatch) {
+    return {
+      tab: 'projects',
+      projectId: decodeURIComponent(rfiMatch[1]),
+      submittalId: null,
+      rfiId: Number(rfiMatch[2]),
+    }
+  }
+
+  const projectMatch = clean.match(/^\/projects\/([^/]+)$/)
+  if (projectMatch) {
+    return {
+      tab: 'projects',
+      projectId: decodeURIComponent(projectMatch[1]),
+      submittalId: null,
+      rfiId: null,
+    }
+  }
+
+  if (clean === '/projects') return { tab: 'projects', projectId: null, submittalId: null, rfiId: null }
+  if (clean === '/submittals') return { tab: 'submittals', projectId: null, submittalId: null, rfiId: null }
+  if (clean === '/rfis') return { tab: 'rfis', projectId: null, submittalId: null, rfiId: null }
+  if (clean === '/users') return { tab: 'users', projectId: null, submittalId: null, rfiId: null }
+  return { tab: 'dashboard', projectId: null, submittalId: null, rfiId: null }
+}
+
 export default function WorkspacePage({
   health,
   user,
@@ -39,8 +85,26 @@ export default function WorkspacePage({
   onLogout,
   refreshWorkspace,
 }: WorkspacePageProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('dashboard')
   const [menuOpen, setMenuOpen] = useState(true)
+  const [pathname, setPathname] = useState(() => window.location.pathname)
+
+  useEffect(() => {
+    const onPopState = () => setPathname(window.location.pathname)
+    window.addEventListener('popstate', onPopState)
+    if (window.location.pathname === '/') {
+      window.history.replaceState({}, '', '/dashboard')
+      setPathname('/dashboard')
+    }
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  const route = useMemo(() => parsePath(pathname), [pathname])
+
+  const navigate = (nextPath: string) => {
+    if (window.location.pathname === nextPath) return
+    window.history.pushState({}, '', nextPath)
+    setPathname(nextPath)
+  }
 
   const navItems: Array<[TabId, string]> = [
     ['dashboard', 'Dashboard'],
@@ -90,9 +154,9 @@ export default function WorkspacePage({
             {navItems.map(([id, label]) => (
               <button
                 key={id}
-                onClick={() => setActiveTab(id)}
+                onClick={() => navigate(`/${id}`)}
                 className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                  activeTab === id ? 'bg-[#b9f5eb] font-semibold text-[#0f172a]' : 'text-[#8a92b2] hover:bg-white/5 hover:text-[#dbe2ff]'
+                  route.tab === id ? 'bg-[#b9f5eb] font-semibold text-[#0f172a]' : 'text-[#8a92b2] hover:bg-white/5 hover:text-[#dbe2ff]'
                 }`}
               >
                 <span>{label}</span>
@@ -125,26 +189,30 @@ export default function WorkspacePage({
 
           {message ? <p className="mb-3 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">{message}</p> : null}
 
-          {activeTab === 'dashboard' ? (
-            <DashboardPanel summary={summary} projects={projects} submittals={submittals} rfis={rfis} />
+          {route.tab === 'dashboard' ? (
+            <DashboardPanel summary={summary} projects={projects} submittals={submittals} rfis={rfis} onNavigate={navigate} />
           ) : null}
-          {activeTab === 'projects' ? (
+          {route.tab === 'projects' ? (
             <ProjectsPanel
               token={token}
               projects={projects}
               submittals={submittals}
               rfis={rfis}
+              routeProjectId={route.projectId}
+              routeSubmittalId={route.submittalId}
+              routeRfiId={route.rfiId}
+              onNavigate={navigate}
               setMessage={setMessage}
               refreshWorkspace={refreshWorkspace}
             />
           ) : null}
-          {activeTab === 'submittals' ? (
+          {route.tab === 'submittals' ? (
             <SubmittalsPanel token={token} projects={projects} submittals={submittals} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
           ) : null}
-          {activeTab === 'rfis' ? (
+          {route.tab === 'rfis' ? (
             <RfisPanel token={token} projects={projects} rfis={rfis} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
           ) : null}
-          {activeTab === 'users' ? <UsersPanel users={users} /> : null}
+          {route.tab === 'users' ? <UsersPanel users={users} /> : null}
         </main>
       </div>
     </div>

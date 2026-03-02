@@ -18,6 +18,13 @@ const STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as const
 const MULTI_VALUE_SEPARATOR = ' | '
 const NOTES_SEPARATOR = '\n\n'
 const todayIsoDate = () => new Date().toISOString().slice(0, 10)
+const getRfiLifecycleStatus = (status: string | null): 'opened' | 'closed' => {
+  const text = String(status || '').toLowerCase()
+  if (!text) return 'opened'
+  return text.includes('approved') || text.includes('closed') || text.includes('complete') || text.includes('resolved') || text.includes('answered')
+    ? 'closed'
+    : 'opened'
+}
 
 function splitMultiValues(value: string | null): string[] {
   return String(value || '')
@@ -70,6 +77,7 @@ const emptyForm: Omit<RfiRecord, 'id'> = {
   response_due: '',
   date_answered: '',
   status: '',
+  lifecycle_status: 'opened',
   days_open: null,
   responsible: '',
   notes: '',
@@ -172,6 +180,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
       response_due: toNullableString(form.response_due),
       date_answered: toNullableString(form.date_answered),
       status: toNullableString(form.status),
+      lifecycle_status: getRfiLifecycleStatus(form.status),
       days_open: null,
       responsible: toNullableString(form.responsible),
       notes: toNullableString(form.notes),

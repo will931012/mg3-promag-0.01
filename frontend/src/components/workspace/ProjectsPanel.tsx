@@ -3,7 +3,17 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { EOR_TYPES } from '../../app/eorTypes'
 import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
-import { createAor, createEor, createProject, deleteProject, fetchAors, fetchEors, updateProject } from '../../services/workspaceService'
+import {
+  createAor,
+  createEor,
+  createProject,
+  deleteProject,
+  fetchAors,
+  fetchEors,
+  updateProject,
+  updateRfi,
+  updateSubmittal,
+} from '../../services/workspaceService'
 import type { AorRecord, EorRecord, ProjectRecord, RfiRecord, SubmittalRecord } from '../../types/workspace'
 
 type ProjectsPanelProps = {
@@ -11,6 +21,10 @@ type ProjectsPanelProps = {
   projects: ProjectRecord[]
   submittals: SubmittalRecord[]
   rfis: RfiRecord[]
+  routeProjectId: string | null
+  routeSubmittalId: number | null
+  routeRfiId: number | null
+  onNavigate: (path: string) => void
   setMessage: (message: string) => void
   refreshWorkspace: (token: string) => Promise<void>
 }
@@ -62,6 +76,9 @@ function removeNote(current: string | null, noteToRemove: string): string {
 }
 
 function isSubmittalClosed(item: SubmittalRecord): boolean {
+  const lifecycleStatus = String(item.lifecycle_status || '').toLowerCase()
+  if (lifecycleStatus === 'closed') return true
+  if (lifecycleStatus === 'opened') return false
   const statusText = String(item.overall_status || item.approval_status || '').toLowerCase()
   if (!statusText) return false
   if (statusText.includes('under revision') || statusText.includes('not approved')) return false
@@ -69,15 +86,35 @@ function isSubmittalClosed(item: SubmittalRecord): boolean {
 }
 
 function isRfiClosed(item: RfiRecord): boolean {
+  const lifecycleStatus = String(item.lifecycle_status || '').toLowerCase()
+  if (lifecycleStatus === 'closed') return true
+  if (lifecycleStatus === 'opened') return false
   const statusText = String(item.status || '').toLowerCase()
   if (!statusText) return false
   if (statusText.includes('under revision') || statusText.includes('not approved') || statusText.includes('open')) return false
   return statusText.includes('approved') || statusText.includes('closed')
 }
 
+function getSubmittalLifecycleStatus(status: string | null): 'opened' | 'closed' {
+  const text = String(status || '').toLowerCase()
+  if (!text) return 'opened'
+  return text.includes('approved') || text.includes('closed') || text.includes('complete') || text.includes('resolved')
+    ? 'closed'
+    : 'opened'
+}
+
+function getRfiLifecycleStatus(status: string | null): 'opened' | 'closed' {
+  const text = String(status || '').toLowerCase()
+  if (!text) return 'opened'
+  return text.includes('approved') || text.includes('closed') || text.includes('complete') || text.includes('resolved') || text.includes('answered')
+    ? 'closed'
+    : 'opened'
+}
+
 const emptyProjectForm: ProjectForm = {
   project_name: '',
   address: '',
+  image_url: '',
   developer: '',
   aor: '',
   eor: '',
@@ -101,16 +138,29 @@ const BUILDING_PLACEHOLDER =
     "</svg>"
   )
 
-export default function ProjectsPanel({ token, projects, submittals, rfis, setMessage, refreshWorkspace }: ProjectsPanelProps) {
+export default function ProjectsPanel({
+  token,
+  projects,
+  submittals,
+  rfis,
+  routeProjectId,
+  routeSubmittalId,
+  routeRfiId,
+  onNavigate,
+  setMessage,
+  refreshWorkspace
+}: ProjectsPanelProps) {
   const [form, setForm] = useState<ProjectForm>(emptyProjectForm)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(routeProjectId)
   const [detailsView, setDetailsView] = useState<'submittals' | 'rfis'>('submittals')
   const [submittalFilter, setSubmittalFilter] = useState<'opened' | 'closed'>('opened')
   const [rfiFilter, setRfiFilter] = useState<'opened' | 'closed'>('opened')
-  const [selectedSubmittalDetailId, setSelectedSubmittalDetailId] = useState<number | null>(null)
-  const [selectedRfiDetailId, setSelectedRfiDetailId] = useState<number | null>(null)
+  const [selectedSubmittalDetailId, setSelectedSubmittalDetailId] = useState<number | null>(routeSubmittalId)
+  const [selectedRfiDetailId, setSelectedRfiDetailId] = useState<number | null>(routeRfiId)
+  const [submittalDraft, setSubmittalDraft] = useState<Omit<SubmittalRecord, 'id'> | null>(null)
+  const [rfiDraft, setRfiDraft] = useState<Omit<RfiRecord, 'id'> | null>(null)
   const [aors, setAors] = useState<AorRecord[]>([])
   const [eors, setEors] = useState<EorRecord[]>([])
   const [aorInput, setAorInput] = useState('')
@@ -191,6 +241,73 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
     [projectRfis, selectedRfiDetailId]
   )
 
+  useEffect(() => {
+    setSelectedProjectId(routeProjectId)
+    setSelectedSubmittalDetailId(routeSubmittalId)
+    setSelectedRfiDetailId(routeRfiId)
+    if (routeRfiId) setDetailsView('rfis')
+    if (routeSubmittalId) setDetailsView('submittals')
+  }, [routeProjectId, routeSubmittalId, routeRfiId])
+
+  const handleSaveSubmittalDetail = async () => {
+    if (!selectedSubmittalDetailId || !submittalDraft) return
+    const payload: Omit<SubmittalRecord, 'id'> = {
+      ...submittalDraft,
+      project_id: toNullableString(submittalDraft.project_id),
+      division_csi: toNullableString(submittalDraft.division_csi),
+      submittal_number: toNullableString(submittalDraft.submittal_number),
+      subject: toNullableString(submittalDraft.subject),
+      contractor: toNullableString(submittalDraft.contractor),
+      date_received: toNullableString(submittalDraft.date_received),
+      sent_to_aor: toNullableString(submittalDraft.sent_to_aor),
+      sent_to_eor: toNullableString(submittalDraft.sent_to_eor),
+      sent_to_subcontractor: toNullableString(submittalDraft.sent_to_subcontractor),
+      sent_to_date: toNullableString(submittalDraft.sent_to_date),
+      approvers: toNullableString(submittalDraft.approvers),
+      approval_status: toNullableString(submittalDraft.approval_status),
+      lifecycle_status: getSubmittalLifecycleStatus(submittalDraft.overall_status ?? submittalDraft.approval_status),
+      revision: toNullableString(submittalDraft.revision),
+      due_date: toNullableString(submittalDraft.due_date),
+      overall_status: toNullableString(submittalDraft.overall_status),
+      responsible: toNullableString(submittalDraft.responsible),
+      workflow_stage: toNullableString(submittalDraft.workflow_stage),
+      notes: toNullableString(submittalDraft.notes),
+      days_pending: null,
+    }
+    const res = await updateSubmittal(token, selectedSubmittalDetailId, payload)
+    if (!res.ok) return setMessage('Failed to update submittal from detail page.')
+    setMessage('Submittal updated.')
+    await refreshWorkspace(token)
+  }
+
+  const handleSaveRfiDetail = async () => {
+    if (!selectedRfiDetailId || !rfiDraft) return
+    const payload: Omit<RfiRecord, 'id'> = {
+      ...rfiDraft,
+      project_id: toNullableString(rfiDraft.project_id),
+      rfi_number: toNullableString(rfiDraft.rfi_number),
+      subject: toNullableString(rfiDraft.subject),
+      description: toNullableString(rfiDraft.description),
+      from_contractor: toNullableString(rfiDraft.from_contractor),
+      date_sent: toNullableString(rfiDraft.date_sent),
+      sent_to_aor: toNullableString(rfiDraft.sent_to_aor),
+      sent_to_eor: toNullableString(rfiDraft.sent_to_eor),
+      sent_to_subcontractor: toNullableString(rfiDraft.sent_to_subcontractor),
+      sent_to_date: toNullableString(rfiDraft.sent_to_date),
+      response_due: toNullableString(rfiDraft.response_due),
+      date_answered: toNullableString(rfiDraft.date_answered),
+      status: toNullableString(rfiDraft.status),
+      lifecycle_status: getRfiLifecycleStatus(rfiDraft.status),
+      responsible: toNullableString(rfiDraft.responsible),
+      notes: toNullableString(rfiDraft.notes),
+      days_open: null,
+    }
+    const res = await updateRfi(token, selectedRfiDetailId, payload)
+    if (!res.ok) return setMessage('Failed to update RFI from detail page.')
+    setMessage('RFI updated.')
+    await refreshWorkspace(token)
+  }
+
   const handleCreateAor = async () => {
     const name = newAorName.trim()
     if (!name) return setMessage('AOR name is required.')
@@ -234,6 +351,7 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
       const updatePayload = {
         project_name: form.project_name,
         address: toNullableString(form.address),
+        image_url: toNullableString(form.image_url),
         developer: toNullableString(form.developer),
         aor: toNullableString(form.aor),
         eor: toNullableString(form.eor),
@@ -250,6 +368,7 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
       const res = await createProject(token, {
         project_name: form.project_name,
         address: toNullableString(form.address),
+        image_url: toNullableString(form.image_url),
         developer: toNullableString(form.developer),
         aor: toNullableString(form.aor),
         eor: toNullableString(form.eor),
@@ -283,14 +402,18 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
               type="button"
               onClick={() => {
                 if (selectedSubmittalDetail) {
-                  setSelectedSubmittalDetailId(null)
+                  onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}`)
+                  setSubmittalDraft(null)
                   return
                 }
                 if (selectedRfiDetail) {
-                  setSelectedRfiDetailId(null)
+                  onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}`)
+                  setRfiDraft(null)
                   return
                 }
-                setSelectedProjectId(null)
+                onNavigate('/projects')
+                setSubmittalDraft(null)
+                setRfiDraft(null)
               }}
               className="rounded-lg bg-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
             >
@@ -299,32 +422,162 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
           </div>
           {selectedSubmittalDetail ? (
             <article className="detail-card mx-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-md">
-              <h3 className="text-2xl font-semibold text-slate-900">Submittal #{selectedSubmittalDetail.submittal_number || selectedSubmittalDetail.id}</h3>
-              <p className="mt-1 text-sm text-slate-500">{selectedSubmittalDetail.subject || 'No subject'}</p>
-              <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
-                <p><span className="font-semibold">Status:</span> {selectedSubmittalDetail.overall_status || selectedSubmittalDetail.approval_status || 'Opened'}</p>
-                <p><span className="font-semibold">Due:</span> {selectedSubmittalDetail.due_date || 'N/A'}</p>
-                <p><span className="font-semibold">Contractor:</span> {selectedSubmittalDetail.contractor || 'N/A'}</p>
-                <p><span className="font-semibold">Responsible:</span> {selectedSubmittalDetail.responsible || 'N/A'}</p>
+              <h3 className="text-2xl font-semibold text-slate-900">Submittal Detail Page</h3>
+              <p className="mt-1 text-sm text-slate-600">Edit and save this submittal from here.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="text-sm text-slate-700">Submittal #
+                  <input
+                    value={submittalDraft?.submittal_number ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, submittal_number: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Due Date
+                  <input
+                    type="date"
+                    value={submittalDraft?.due_date ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, due_date: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Subject
+                  <input
+                    value={submittalDraft?.subject ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, subject: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Contractor
+                  <input
+                    value={submittalDraft?.contractor ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, contractor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Overall Status
+                  <input
+                    value={submittalDraft?.overall_status ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, overall_status: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Responsible
+                  <input
+                    value={submittalDraft?.responsible ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, responsible: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700 md:col-span-2">Notes
+                  <textarea
+                    value={submittalDraft?.notes ?? ''}
+                    onChange={(e) => setSubmittalDraft((prev) => (prev ? { ...prev, notes: e.target.value } : prev))}
+                    rows={4}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
               </div>
-              <p className="mt-4 text-sm text-slate-600">{selectedSubmittalDetail.notes || 'No notes.'}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveSubmittalDetail}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                >
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedSubmittalDetail) return
+                    setSubmittalDraft({ ...selectedSubmittalDetail })
+                  }}
+                  className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+                >
+                  Reset
+                </button>
+              </div>
             </article>
           ) : selectedRfiDetail ? (
             <article className="detail-card mx-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-md">
-              <h3 className="text-2xl font-semibold text-slate-900">RFI #{selectedRfiDetail.rfi_number || selectedRfiDetail.id}</h3>
-              <p className="mt-1 text-sm text-slate-500">{selectedRfiDetail.subject || 'No subject'}</p>
-              <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
-                <p><span className="font-semibold">Status:</span> {selectedRfiDetail.status || 'Opened'}</p>
-                <p><span className="font-semibold">Response Due:</span> {selectedRfiDetail.response_due || 'N/A'}</p>
-                <p><span className="font-semibold">From:</span> {selectedRfiDetail.from_contractor || 'N/A'}</p>
-                <p><span className="font-semibold">Responsible:</span> {selectedRfiDetail.responsible || 'N/A'}</p>
+              <h3 className="text-2xl font-semibold text-slate-900">RFI Detail Page</h3>
+              <p className="mt-1 text-sm text-slate-600">Edit and save this RFI from here.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="text-sm text-slate-700">RFI #
+                  <input
+                    value={rfiDraft?.rfi_number ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, rfi_number: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Status
+                  <input
+                    value={rfiDraft?.status ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, status: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Subject
+                  <input
+                    value={rfiDraft?.subject ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, subject: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Response Due
+                  <input
+                    type="date"
+                    value={rfiDraft?.response_due ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, response_due: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">From Contractor
+                  <input
+                    value={rfiDraft?.from_contractor ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, from_contractor: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700">Responsible
+                  <input
+                    value={rfiDraft?.responsible ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, responsible: e.target.value } : prev))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-700 md:col-span-2">Description
+                  <textarea
+                    value={rfiDraft?.description ?? ''}
+                    onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
+                    rows={4}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                  />
+                </label>
               </div>
-              <p className="mt-4 text-sm text-slate-600">{selectedRfiDetail.description || selectedRfiDetail.notes || 'No notes.'}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveRfiDetail}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                >
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedRfiDetail) return
+                    setRfiDraft({ ...selectedRfiDetail })
+                  }}
+                  className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+                >
+                  Reset
+                </button>
+              </div>
             </article>
           ) : (
             <>
               <article className="detail-card mx-auto w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md">
-                <img src={BUILDING_PLACEHOLDER} alt="Project placeholder building" className="h-56 w-full object-cover" />
+                <img src={selectedProject.image_url || BUILDING_PLACEHOLDER} alt="Project placeholder building" className="h-56 w-full object-cover" />
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -421,9 +674,11 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
                         type="button"
                         onClick={() => {
                           if (detailsView === 'submittals') {
-                            setSelectedSubmittalDetailId((item as SubmittalRecord).id)
+                            onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${(item as SubmittalRecord).id}`)
+                            setSubmittalDraft({ ...(item as SubmittalRecord) })
                           } else {
-                            setSelectedRfiDetailId((item as RfiRecord).id)
+                            onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${(item as RfiRecord).id}`)
+                            setRfiDraft({ ...(item as RfiRecord) })
                           }
                         }}
                         className="mt-3 text-sm font-semibold text-brand-700 underline-offset-2 hover:underline"
@@ -472,6 +727,7 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
         {[
           ['Project Name', 'project_name', 'text'],
           ['Address', 'address', 'text'],
+          ['Image URL', 'image_url', 'url'],
           ['Developer', 'developer', 'text'],
           ['AOR', 'aor', 'text'],
           ['EOR', 'eor', 'text'],
@@ -735,7 +991,7 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedProjectId(item.project_id)
+                      onNavigate(`/projects/${encodeURIComponent(item.project_id)}`)
                       setDetailsView('submittals')
                       setSubmittalFilter('opened')
                       setRfiFilter('opened')
@@ -759,6 +1015,7 @@ export default function ProjectsPanel({ token, projects, submittals, rfis, setMe
                         setForm({
                           project_name: item.project_name ?? '',
                           address: item.address ?? '',
+                          image_url: item.image_url ?? '',
                           developer: item.developer ?? '',
                           aor: item.aor ?? '',
                           eor: item.eor ?? '',

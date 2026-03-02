@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS rfi_tracker (
   response_due DATE,
   date_answered DATE,
   status VARCHAR(100),
+  lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'opened',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   responsible VARCHAR(255),
   notes TEXT
@@ -33,4 +34,3 @@ main().catch(async (error) => {
   await pool.end();
   process.exit(1);
 });
-

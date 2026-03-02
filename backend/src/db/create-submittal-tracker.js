@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS submittal_tracker (
   sent_to_date DATE,
   approvers TEXT,
   approval_status VARCHAR(100),
+  lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'opened',
   revision VARCHAR(50),
   due_date DATE,
   overall_status VARCHAR(100),
@@ -35,4 +36,3 @@ main().catch(async (error) => {
   await pool.end();
   process.exit(1);
 });
-

@@ -12,6 +12,7 @@ export type ProjectRecord = {
   project_id: string
   project_name: string
   address: string | null
+  image_url: string | null
   developer: string | null
   aor: string | null
   eor: string | null
@@ -51,6 +52,7 @@ export type SubmittalRecord = {
   sent_to_date: string | null
   approvers: string | null
   approval_status: string | null
+  lifecycle_status: string | null
   revision: string | null
   due_date: string | null
   days_pending: number | null
@@ -75,6 +77,7 @@ export type RfiRecord = {
   response_due: string | null
   date_answered: string | null
   status: string | null
+  lifecycle_status: string | null
   days_open: number | null
   responsible: string | null
   notes: string | null

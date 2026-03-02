@@ -7,6 +7,7 @@ type DashboardPanelProps = {
   projects: ProjectRecord[]
   submittals: SubmittalRecord[]
   rfis: RfiRecord[]
+  onNavigate: (path: string) => void
 }
 
 const safePercent = (value: number, total: number): number => {
@@ -45,7 +46,7 @@ function normalizePriority(value: string | null): 'high' | 'medium' | 'low' | 'o
   return 'other'
 }
 
-export default function DashboardPanel({ summary, projects, submittals, rfis }: DashboardPanelProps) {
+export default function DashboardPanel({ summary, projects, submittals, rfis, onNavigate }: DashboardPanelProps) {
   const totalProjects = Math.max(projects.length, summary.active_projects)
   const pressureCases = summary.submittals_late + summary.rfis_overdue_open
   const deliveryFlow = useMemo(
@@ -102,6 +103,15 @@ export default function DashboardPanel({ summary, projects, submittals, rfis }: 
       chip: pressureCases === 0 ? 'All clear' : 'Needs follow-up',
     },
   ] as const
+  const urgentSubmittals = useMemo(
+    () => submittals.filter((item) => item.project_id).slice(0, 3),
+    [submittals]
+  )
+  const urgentRfis = useMemo(
+    () => rfis.filter((item) => item.project_id).slice(0, 3),
+    [rfis]
+  )
+  const topProjects = useMemo(() => projects.slice(0, 3), [projects])
 
   return (
     <section className="space-y-3 text-[#d9e2ff]">
@@ -109,13 +119,84 @@ export default function DashboardPanel({ summary, projects, submittals, rfis }: 
         <p className="text-xs text-[#8f98bf]">Today's Sales</p>
         <h2 className="text-lg font-semibold text-[#f0f4ff]">Sales Summary</h2>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          {cards.map((card) => (
-            <article key={card.label} className="rounded-lg border border-white/5 bg-[#111628] p-3">
+          {cards.map((card) => {
+            const to =
+              card.label === 'Active Projects'
+                ? '/projects'
+                : card.label.includes('Submittals')
+                  ? '/submittals'
+                  : card.label.includes('RFIs')
+                    ? '/rfis'
+                    : '/dashboard'
+            return (
+            <button
+              key={card.label}
+              type="button"
+              onClick={() => onNavigate(to)}
+              className="rounded-lg border border-white/5 bg-[#111628] p-3 text-left transition hover:border-[#5be1c7]/60 hover:bg-[#171d34]"
+            >
               <p className="text-xs text-[#8f98bf]">{card.label}</p>
               <p className="mt-1 text-2xl font-bold text-[#f2f7ff]">{card.value}</p>
               <p className="text-[11px] text-[#5be1c7]">{card.chip}</p>
-            </article>
-          ))}
+            </button>
+          )})}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-[#1b2035] p-4">
+        <h3 className="text-lg font-semibold text-[#f0f4ff]">Quick Links</h3>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
+            <p className="text-xs text-[#8f98bf]">Projects</p>
+            <div className="mt-2 space-y-2">
+              {topProjects.length ? topProjects.map((project) => (
+                <button
+                  key={project.project_id}
+                  type="button"
+                  onClick={() => onNavigate(`/projects/${encodeURIComponent(project.project_id)}`)}
+                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm text-[#d9e2ff] hover:bg-white/10"
+                >
+                  {project.project_name}
+                </button>
+              )) : <p className="text-sm text-[#97a0c4]">No projects</p>}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
+            <p className="text-xs text-[#8f98bf]">Submittals</p>
+            <div className="mt-2 space-y-2">
+              {urgentSubmittals.length ? urgentSubmittals.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    if (!item.project_id) return
+                    onNavigate(`/projects/${encodeURIComponent(item.project_id)}/submittals/${item.id}`)
+                  }}
+                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm text-[#d9e2ff] hover:bg-white/10"
+                >
+                  {item.submittal_number || `Submittal ${item.id}`}
+                </button>
+              )) : <p className="text-sm text-[#97a0c4]">No submittals</p>}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
+            <p className="text-xs text-[#8f98bf]">RFIs</p>
+            <div className="mt-2 space-y-2">
+              {urgentRfis.length ? urgentRfis.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    if (!item.project_id) return
+                    onNavigate(`/projects/${encodeURIComponent(item.project_id)}/rfis/${item.id}`)
+                  }}
+                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm text-[#d9e2ff] hover:bg-white/10"
+                >
+                  {item.rfi_number || `RFI ${item.id}`}
+                </button>
+              )) : <p className="text-sm text-[#97a0c4]">No RFIs</p>}
+            </div>
+          </div>
         </div>
       </div>
 

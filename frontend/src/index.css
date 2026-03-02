@@ -29,38 +29,16 @@ h1, h2, h3, h4 {
   letter-spacing: -0.01em;
 }
 
-.neo-dashboard section {
-  background: #1b2035 !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+.neo-dashboard .surface-dark {
+  background: #1b2035;
+  border-color: rgba(255, 255, 255, 0.08);
   color: #d9e2ff;
 }
 
-.neo-dashboard section h1,
-.neo-dashboard section h2,
-.neo-dashboard section h3,
-.neo-dashboard section h4,
-.neo-dashboard section p,
-.neo-dashboard section label,
-.neo-dashboard section span,
-.neo-dashboard section th,
-.neo-dashboard section td {
-  color: inherit;
-}
-
-.neo-dashboard input,
-.neo-dashboard select,
-.neo-dashboard textarea {
-  background: #12172a !important;
-  color: #e4e9ff !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
-}
-
-.neo-dashboard table thead tr {
-  background: #12172a !important;
-}
-
-.neo-dashboard table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+.neo-dashboard .surface-light {
+  background: #ffffff;
+  border-color: #d8e2ef;
+  color: #1e293b;
 }
 
 .detail-card {
