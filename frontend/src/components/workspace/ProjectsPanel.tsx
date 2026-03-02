@@ -308,6 +308,22 @@ export default function ProjectsPanel({
     if (routeSubmittalId) setDetailsView('submittals')
   }, [routeProjectId, routeSubmittalId, routeRfiId])
 
+  useEffect(() => {
+    if (!selectedSubmittalDetail) {
+      setSubmittalDraft(null)
+      return
+    }
+    setSubmittalDraft((prev) => (prev && selectedSubmittalDetailId === selectedSubmittalDetail.id ? prev : { ...selectedSubmittalDetail }))
+  }, [selectedSubmittalDetail, selectedSubmittalDetailId])
+
+  useEffect(() => {
+    if (!selectedRfiDetail) {
+      setRfiDraft(null)
+      return
+    }
+    setRfiDraft((prev) => (prev && selectedRfiDetailId === selectedRfiDetail.id ? prev : { ...selectedRfiDetail }))
+  }, [selectedRfiDetail, selectedRfiDetailId])
+
   const hasUnsavedSubmittalDetail = useMemo(() => {
     if (!selectedSubmittalDetail || !submittalDraft) return false
     return JSON.stringify(submittalDraft) !== JSON.stringify(selectedSubmittalDetail)
@@ -1000,8 +1016,13 @@ export default function ProjectsPanel({
                         </p>
                         <p className="mt-2 text-base font-semibold text-slate-900">
                           {detailsView === 'submittals'
-                            ? ((item as SubmittalRecord).submittal_number || (item as SubmittalRecord).subject || 'Untitled')
-                            : ((item as RfiRecord).rfi_number || (item as RfiRecord).subject || 'Untitled')}
+                            ? ((item as SubmittalRecord).submittal_number || 'No Number')
+                            : ((item as RfiRecord).rfi_number || 'No Number')}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {detailsView === 'submittals'
+                            ? ((item as SubmittalRecord).subject || 'No subject')
+                            : ((item as RfiRecord).subject || 'No subject')}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <StatusBadge
@@ -1021,17 +1042,13 @@ export default function ProjectsPanel({
                         <button
                           type="button"
                           onClick={() => {
-                          if (detailsView === 'submittals') {
+                            if (detailsView === 'submittals') {
                               if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Continue without saving?')) return
                               const selected = item as SubmittalRecord
-                              setSelectedSubmittalDetailId(selected.id)
-                              setSubmittalDraft({ ...selected })
                               onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${selected.id}`)
                             } else {
                               if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Continue without saving?')) return
                               const selected = item as RfiRecord
-                              setSelectedRfiDetailId(selected.id)
-                              setRfiDraft({ ...selected })
                               onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${selected.id}`)
                             }
                           }}
@@ -1064,8 +1081,13 @@ export default function ProjectsPanel({
                             </p>
                             <p className="mt-2 text-base font-semibold text-slate-900">
                               {detailsView === 'submittals'
-                                ? ((item as SubmittalRecord).submittal_number || (item as SubmittalRecord).subject || 'Untitled')
-                                : ((item as RfiRecord).rfi_number || (item as RfiRecord).subject || 'Untitled')}
+                                ? ((item as SubmittalRecord).submittal_number || 'No Number')
+                                : ((item as RfiRecord).rfi_number || 'No Number')}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {detailsView === 'submittals'
+                                ? ((item as SubmittalRecord).subject || 'No subject')
+                                : ((item as RfiRecord).subject || 'No subject')}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <StatusBadge
@@ -1088,14 +1110,10 @@ export default function ProjectsPanel({
                                 if (detailsView === 'submittals') {
                                   if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Continue without saving?')) return
                                   const selected = item as SubmittalRecord
-                                  setSelectedSubmittalDetailId(selected.id)
-                                  setSubmittalDraft({ ...selected })
                                   onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${selected.id}`)
                                 } else {
                                   if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Continue without saving?')) return
                                   const selected = item as RfiRecord
-                                  setSelectedRfiDetailId(selected.id)
-                                  setRfiDraft({ ...selected })
                                   onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${selected.id}`)
                                 }
                               }}
@@ -1420,28 +1438,36 @@ export default function ProjectsPanel({
           </thead>
           <tbody>
             {projects.map((item) => (
-              <tr key={item.project_id}>
+              <tr
+                key={item.project_id}
+                role="link"
+                tabIndex={0}
+                onClick={() => {
+                  onNavigate(`/projects/${encodeURIComponent(item.project_id)}`)
+                  setDetailsView('submittals')
+                  setSubmittalFilter('opened')
+                  setRfiFilter('opened')
+                  setSelectedSubmittalDetailId(null)
+                  setSelectedRfiDetailId(null)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onNavigate(`/projects/${encodeURIComponent(item.project_id)}`)
+                  setDetailsView('submittals')
+                  setSubmittalFilter('opened')
+                  setRfiFilter('opened')
+                  setSelectedSubmittalDetailId(null)
+                  setSelectedRfiDetailId(null)
+                }}
+                className="cursor-pointer hover:bg-slate-50 focus-within:bg-slate-50"
+              >
                 <td className="border px-3 py-2">{item.project_id}</td>
-                <td className="border px-3 py-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onNavigate(`/projects/${encodeURIComponent(item.project_id)}`)
-                      setDetailsView('submittals')
-                      setSubmittalFilter('opened')
-                      setRfiFilter('opened')
-                      setSelectedSubmittalDetailId(null)
-                      setSelectedRfiDetailId(null)
-                    }}
-                    className="font-semibold text-brand-700 underline-offset-2 hover:underline"
-                  >
-                    {item.project_name}
-                  </button>
-                </td>
+                <td className="border px-3 py-2 font-semibold text-brand-700">{item.project_name}</td>
                 <td className="border px-3 py-2">{item.developer ?? ''}</td>
                 <td className="border px-3 py-2">{item.status ?? ''}</td>
                 <td className="border px-3 py-2">{item.priority ?? ''}</td>
-                <td className="border px-3 py-2">
+                <td className="border px-3 py-2" onClick={(event) => event.stopPropagation()}>
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
