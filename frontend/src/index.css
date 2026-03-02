@@ -62,3 +62,24 @@ h1, h2, h3, h4 {
 .neo-dashboard table tbody tr:hover {
   background: rgba(255, 255, 255, 0.03);
 }
+
+.detail-card {
+  animation: card-in 340ms ease both;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.detail-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 28px rgba(31, 78, 121, 0.18);
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

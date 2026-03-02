@@ -129,7 +129,14 @@ export default function WorkspacePage({
             <DashboardPanel summary={summary} projects={projects} submittals={submittals} rfis={rfis} />
           ) : null}
           {activeTab === 'projects' ? (
-            <ProjectsPanel token={token} projects={projects} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
+            <ProjectsPanel
+              token={token}
+              projects={projects}
+              submittals={submittals}
+              rfis={rfis}
+              setMessage={setMessage}
+              refreshWorkspace={refreshWorkspace}
+            />
           ) : null}
           {activeTab === 'submittals' ? (
             <SubmittalsPanel token={token} projects={projects} submittals={submittals} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
