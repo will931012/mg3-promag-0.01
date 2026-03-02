@@ -112,12 +112,12 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
   const topProjects = useMemo(() => projects.slice(0, 3), [projects])
 
   return (
-    <section className="slide-in space-y-3 text-[#d9e2ff]">
-      <div className="rounded-xl border border-white/10 bg-[#1b2035] p-4">
+    <section className="space-y-3 text-[#d9e2ff]">
+      <div className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '0ms' }}>
         <p className="text-xs text-[#8f98bf]">Today's Sales</p>
         <h2 className="text-xl font-semibold text-[#f0f4ff]">Sales Summary</h2>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          {cards.map((card) => {
+          {cards.map((card, index) => {
             const to =
               card.label === 'Active Projects'
                 ? '/projects'
@@ -131,7 +131,8 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
               key={card.label}
               type="button"
               onClick={() => onNavigate(to)}
-              className="rounded-lg border border-white/10 bg-[#111628] p-3 text-left transition hover:border-[#5be1c7]/60 hover:bg-[#171d34]"
+              className="slide-in rounded-lg border border-white/10 bg-[#111628] p-3 text-left transition hover:border-[#5be1c7]/60 hover:bg-[#171d34]"
+              style={{ animationDelay: `${60 + (index * 45)}ms` }}
             >
               <p className="text-xs font-semibold tracking-[0.06em] text-[#8f98bf]">{card.label}</p>
               <p className="mt-1 text-2xl font-bold text-[#f2f7ff]">{card.value}</p>
@@ -143,7 +144,7 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#1b2035] p-4">
+      <div className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '120ms' }}>
         <h3 className="text-lg font-semibold text-[#f0f4ff]">Quick Links</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
@@ -201,7 +202,7 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1.5fr_1fr]">
-        <article className="rounded-xl border border-white/10 bg-[#1b2035] p-4">
+        <article className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '180ms' }}>
           <h3 className="text-lg font-semibold text-[#f0f4ff]">Delivery Flow</h3>
           <div className="mt-3 rounded-lg border border-white/5 bg-[#12172a] p-3">
             <svg viewBox="0 0 100 100" className="h-40 w-full">
@@ -233,7 +234,7 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
           </div>
         </article>
 
-        <article className="rounded-xl border border-white/10 bg-[#1b2035] p-4">
+        <article className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '230ms' }}>
           <h3 className="text-lg font-semibold text-[#f0f4ff]">Project Distribution</h3>
           <div className="mt-3 space-y-3 text-xs">
             <div>

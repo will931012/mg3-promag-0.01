@@ -112,6 +112,7 @@ export default function WorkspacePage({
   }, [menuOpen])
 
   const route = useMemo(() => parsePath(pathname), [pathname])
+  const isErrorMessage = /fail|error|unable|invalid/i.test(message)
 
   const navigate = (nextPath: string) => {
     if (window.location.pathname === nextPath) return
@@ -213,10 +214,15 @@ export default function WorkspacePage({
           </header>
 
           {message ? (
-            <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 shadow-lg">
+            <div className={`save-toast fixed bottom-4 right-4 z-50 max-w-sm rounded-lg px-3 py-2 text-sm shadow-lg ${isErrorMessage ? 'border border-rose-300/70 bg-rose-50 text-rose-800' : 'border border-emerald-300/60 bg-emerald-50 text-emerald-800'}`}>
               <div className="flex items-start justify-between gap-3">
-                <p>{message}</p>
-                <button type="button" onClick={() => setMessage('')} className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                <div className="flex items-start gap-2">
+                  <span className={`toast-check mt-[1px] inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${isErrorMessage ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {isErrorMessage ? '!' : '✓'}
+                  </span>
+                  <p>{message}</p>
+                </div>
+                <button type="button" onClick={() => setMessage('')} className={`rounded px-2 py-0.5 text-xs ${isErrorMessage ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
                   Close
                 </button>
               </div>

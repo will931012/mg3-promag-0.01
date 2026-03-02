@@ -48,12 +48,13 @@ h1, h2, h3, h4 {
 
 .detail-card {
   animation: card-in 340ms ease both;
-  transition: transform 180ms ease, box-shadow 180ms ease;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
 .detail-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 28px rgba(31, 78, 121, 0.18);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(31, 78, 121, 0.12);
+  border-color: #c7d7ea;
 }
 
 button,
@@ -93,7 +94,8 @@ textarea:disabled {
 }
 
 .ui-btn-primary:hover {
-  filter: brightness(1.04);
+  transform: translateY(-1px);
+  filter: brightness(1.03);
 }
 
 .ui-btn-secondary {
@@ -104,6 +106,7 @@ textarea:disabled {
 
 .ui-btn-secondary:hover {
   background: #dde7f2;
+  transform: translateY(-1px);
 }
 
 .ui-btn-danger {
@@ -112,7 +115,8 @@ textarea:disabled {
 }
 
 .ui-btn-danger:hover {
-  filter: brightness(1.05);
+  transform: translateY(-1px);
+  filter: brightness(1.03);
 }
 
 .ui-badge {
@@ -224,6 +228,15 @@ textarea:disabled {
   animation: slide-in 240ms ease both;
 }
 
+.save-toast {
+  animation: toast-pop 260ms ease both;
+}
+
+.toast-check {
+  animation: check-pop 360ms ease both;
+  transform-origin: center;
+}
+
 @keyframes slide-in {
   from {
     opacity: 0;
@@ -243,5 +256,31 @@ textarea:disabled {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes check-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
