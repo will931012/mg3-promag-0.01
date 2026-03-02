@@ -74,6 +74,7 @@ const emptyProjectForm: ProjectForm = {
 export default function ProjectsPanel({ token, projects, setMessage, refreshWorkspace }: ProjectsPanelProps) {
   const [form, setForm] = useState<ProjectForm>(emptyProjectForm)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [aors, setAors] = useState<AorRecord[]>([])
   const [eors, setEors] = useState<EorRecord[]>([])
   const [aorInput, setAorInput] = useState('')
@@ -202,12 +203,35 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
     setAorInput('')
     setEorInput('')
     setNoteInput('')
+    setShowForm(false)
     await refreshWorkspace(token)
   }
 
   return (
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-slate-900">{editingProjectId ? 'Edit Project' : 'New Project'}</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold text-slate-900">{editingProjectId ? 'Edit Project' : 'Projects'}</h2>
+        <button
+          type="button"
+          onClick={() => {
+            if (showForm && !editingProjectId) {
+              setShowForm(false)
+              return
+            }
+            setEditingProjectId(null)
+            setForm(emptyProjectForm)
+            setSelectedEorType(defaultEorType)
+            setAorInput('')
+            setEorInput('')
+            setNoteInput('')
+            setShowForm(true)
+          }}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+        >
+          {showForm ? 'Hide Form' : 'Add Project'}
+        </button>
+      </div>
+      {showForm ? (
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {[
           ['Project Name', 'project_name', 'text'],
@@ -456,6 +480,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
           ) : null}
         </div>
       </form>
+      ) : null}
 
       <div className="mt-6 overflow-x-auto">
         <table className="w-full min-w-[900px] border-collapse text-sm">
@@ -478,6 +503,7 @@ export default function ProjectsPanel({ token, projects, setMessage, refreshWork
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
+                        setShowForm(true)
                         setEditingProjectId(item.project_id)
                         setForm({
                           project_name: item.project_name ?? '',
