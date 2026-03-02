@@ -8,6 +8,12 @@ const asNullableDate = (value) => {
   const trimmed = String(value ?? "").trim();
   return trimmed.length ? trimmed : null;
 };
+const todayIsoDate = () => new Date().toISOString().slice(0, 10);
+const getPgErrorDetail = (error) => ({
+  code: error?.code ?? null,
+  detail: error?.detail ?? null,
+  message: error?.message ?? "Unknown database error",
+});
 
 const selectSubmittalSql = `
   SELECT
@@ -75,7 +81,9 @@ router.post("/", async (req, res) => {
   const sent_to_aor = asOptionalText(rawSentToAor);
   const sent_to_eor = asOptionalText(rawSentToEor);
   const sent_to_subcontractor = asOptionalText(rawSentToSubcontractor);
-  const sent_to_date = asNullableDate(rawSentToDate);
+  const sent_to_date_input = asNullableDate(rawSentToDate);
+  const hasSentToRecipient = Boolean(sent_to_aor || sent_to_eor);
+  const sent_to_date = hasSentToRecipient ? (sent_to_date_input ?? todayIsoDate()) : sent_to_date_input;
   const approvers = asOptionalText(rawApprovers);
   const approval_status = asOptionalText(rawApprovalStatus);
   const revision = asOptionalText(rawRevision);
@@ -91,7 +99,7 @@ router.post("/", async (req, res) => {
         project_id, division_csi, submittal_number, subject, contractor, date_received, sent_to_aor, sent_to_eor,
         sent_to_subcontractor, sent_to_date, approvers, approval_status, revision, due_date, overall_status, responsible, workflow_stage, notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN (NULLIF($7, '') IS NOT NULL OR NULLIF($8, '') IS NOT NULL) THEN COALESCE($10, CURRENT_DATE) ELSE $10 END,$11,$12,$13,$14,$15,$16,$17,$18)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING
         id,
         project_id,
@@ -135,8 +143,10 @@ router.post("/", async (req, res) => {
       ]
     );
     return res.status(201).json(rows[0]);
-  } catch {
-    return res.status(500).json({ detail: "Failed to create submittal." });
+  } catch (error) {
+    const pgError = getPgErrorDetail(error);
+    console.error("Create submittal failed:", pgError);
+    return res.status(500).json({ detail: `Failed to create submittal: ${pgError.message}` });
   }
 });
 
@@ -254,8 +264,10 @@ router.put("/:id", async (req, res) => {
     );
     if (!rows[0]) return res.status(404).json({ detail: "Submittal not found." });
     return res.json(rows[0]);
-  } catch {
-    return res.status(500).json({ detail: "Failed to update submittal." });
+  } catch (error) {
+    const pgError = getPgErrorDetail(error);
+    console.error("Update submittal failed:", pgError);
+    return res.status(500).json({ detail: `Failed to update submittal: ${pgError.message}` });
   }
 });
 

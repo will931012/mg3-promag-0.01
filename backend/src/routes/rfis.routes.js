@@ -2,6 +2,17 @@ import { Router } from "express";
 import pool from "../db/pool.js";
 
 const router = Router();
+const asOptionalText = (value) => String(value ?? "").trim();
+const asNullableDate = (value) => {
+  const trimmed = String(value ?? "").trim();
+  return trimmed.length ? trimmed : null;
+};
+const todayIsoDate = () => new Date().toISOString().slice(0, 10);
+const getPgErrorDetail = (error) => ({
+  code: error?.code ?? null,
+  detail: error?.detail ?? null,
+  message: error?.message ?? "Unknown database error",
+});
 
 const selectRfiSql = `
   SELECT
@@ -40,22 +51,41 @@ router.get("/", async (_req, res) => {
 
 router.post("/", async (req, res) => {
   const {
-    project_id,
-    rfi_number,
-    subject,
-    description,
-    from_contractor,
-    date_sent,
-    sent_to_aor,
-    sent_to_eor,
-    sent_to_subcontractor,
-    sent_to_date,
-    response_due,
-    date_answered,
-    status,
-    responsible,
-    notes
+    project_id: rawProjectId,
+    rfi_number: rawRfiNumber,
+    subject: rawSubject,
+    description: rawDescription,
+    from_contractor: rawFromContractor,
+    date_sent: rawDateSent,
+    sent_to_aor: rawSentToAor,
+    sent_to_eor: rawSentToEor,
+    sent_to_subcontractor: rawSentToSubcontractor,
+    sent_to_date: rawSentToDate,
+    response_due: rawResponseDue,
+    date_answered: rawDateAnswered,
+    status: rawStatus,
+    responsible: rawResponsible,
+    notes: rawNotes
   } = req.body || {};
+  const project_id = asOptionalText(rawProjectId);
+  if (!project_id) return res.status(400).json({ detail: "project_id is required." });
+  const rfi_number = asOptionalText(rawRfiNumber);
+  const subject = asOptionalText(rawSubject);
+  const description = asOptionalText(rawDescription);
+  const from_contractor = asOptionalText(rawFromContractor);
+  const date_sent = asNullableDate(rawDateSent);
+  const sent_to_aor = asOptionalText(rawSentToAor);
+  const sent_to_eor = asOptionalText(rawSentToEor);
+  const sent_to_subcontractor = asOptionalText(rawSentToSubcontractor);
+  const sent_to_date_input = asNullableDate(rawSentToDate);
+  const response_due = asNullableDate(rawResponseDue);
+  const status = asOptionalText(rawStatus);
+  const responsible = asOptionalText(rawResponsible);
+  const notes = asOptionalText(rawNotes);
+  const hasSentToRecipient = Boolean(sent_to_aor || sent_to_eor);
+  const sent_to_date = hasSentToRecipient ? (sent_to_date_input ?? todayIsoDate()) : sent_to_date_input;
+  const date_answered_input = asNullableDate(rawDateAnswered);
+  const date_answered = status === "Approved" ? (date_answered_input ?? todayIsoDate()) : date_answered_input;
 
   try {
     const { rows } = await pool.query(
@@ -65,8 +95,7 @@ router.post("/", async (req, res) => {
       )
       VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,
-        CASE WHEN ($7 IS NOT NULL OR $8 IS NOT NULL) THEN COALESCE($10, CURRENT_DATE) ELSE $10 END,
-        $11,CASE WHEN $13 = 'Approved' THEN COALESCE($12, CURRENT_DATE) ELSE $12 END,$13,$14,$15
+        $10,$11,$12,$13,$14,$15
       )
       RETURNING
         id,
@@ -108,8 +137,10 @@ router.post("/", async (req, res) => {
       ]
     );
     return res.status(201).json(rows[0]);
-  } catch {
-    return res.status(500).json({ detail: "Failed to create RFI." });
+  } catch (error) {
+    const pgError = getPgErrorDetail(error);
+    console.error("Create RFI failed:", pgError);
+    return res.status(500).json({ detail: `Failed to create RFI: ${pgError.message}` });
   }
 });
 
@@ -118,22 +149,38 @@ router.put("/:id", async (req, res) => {
   if (!Number.isInteger(id)) return res.status(400).json({ detail: "Invalid id." });
 
   const {
-    project_id,
-    rfi_number,
-    subject,
-    description,
-    from_contractor,
-    date_sent,
-    sent_to_aor,
-    sent_to_eor,
-    sent_to_subcontractor,
-    sent_to_date,
-    response_due,
-    date_answered,
-    status,
-    responsible,
-    notes
+    project_id: rawProjectId,
+    rfi_number: rawRfiNumber,
+    subject: rawSubject,
+    description: rawDescription,
+    from_contractor: rawFromContractor,
+    date_sent: rawDateSent,
+    sent_to_aor: rawSentToAor,
+    sent_to_eor: rawSentToEor,
+    sent_to_subcontractor: rawSentToSubcontractor,
+    sent_to_date: rawSentToDate,
+    response_due: rawResponseDue,
+    date_answered: rawDateAnswered,
+    status: rawStatus,
+    responsible: rawResponsible,
+    notes: rawNotes
   } = req.body || {};
+  const project_id = asOptionalText(rawProjectId);
+  if (!project_id) return res.status(400).json({ detail: "project_id is required." });
+  const rfi_number = asOptionalText(rawRfiNumber);
+  const subject = asOptionalText(rawSubject);
+  const description = asOptionalText(rawDescription);
+  const from_contractor = asOptionalText(rawFromContractor);
+  const date_sent = asNullableDate(rawDateSent);
+  const sent_to_aor = asOptionalText(rawSentToAor);
+  const sent_to_eor = asOptionalText(rawSentToEor);
+  const sent_to_subcontractor = asOptionalText(rawSentToSubcontractor);
+  const sent_to_date = asNullableDate(rawSentToDate);
+  const response_due = asNullableDate(rawResponseDue);
+  const date_answered = asNullableDate(rawDateAnswered);
+  const status = asOptionalText(rawStatus);
+  const responsible = asOptionalText(rawResponsible);
+  const notes = asOptionalText(rawNotes);
 
   try {
     const { rows } = await pool.query(
@@ -202,8 +249,10 @@ router.put("/:id", async (req, res) => {
     );
     if (!rows[0]) return res.status(404).json({ detail: "RFI not found." });
     return res.json(rows[0]);
-  } catch {
-    return res.status(500).json({ detail: "Failed to update RFI." });
+  } catch (error) {
+    const pgError = getPgErrorDetail(error);
+    console.error("Update RFI failed:", pgError);
+    return res.status(500).json({ detail: `Failed to update RFI: ${pgError.message}` });
   }
 });
 
