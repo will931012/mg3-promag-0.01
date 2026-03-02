@@ -226,7 +226,8 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
           <PrimaryButton
             type="button"
             onClick={() => {
-              if (showForm && !editingId) {
+              if (showForm) {
+                setEditingId(null)
                 setShowForm(false)
                 return
               }

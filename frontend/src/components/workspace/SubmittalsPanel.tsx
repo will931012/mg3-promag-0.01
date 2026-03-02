@@ -297,7 +297,8 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
           <PrimaryButton
             type="button"
             onClick={() => {
-              if (showForm && !editingId) {
+              if (showForm) {
+                setEditingId(null)
                 setShowForm(false)
                 return
               }

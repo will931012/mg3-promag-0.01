@@ -164,7 +164,7 @@ export default function WorkspacePage({
         >
           <div className="mb-4 border-b border-white/10 pb-4">
             <p className="text-xs uppercase tracking-[0.2em] text-[#8f98bf]">MG3 Group</p>
-            <p className="mt-1 text-sm font-semibold text-[#dbe2ff]">Sales Workspace</p>
+            <p className="mt-1 text-sm font-semibold text-[#dbe2ff]">Project Management</p>
           </div>
           <nav className="space-y-2">
             {navItems.map(([id, label]) => (

@@ -1139,7 +1139,8 @@ export default function ProjectsPanel({
           <PrimaryButton
             type="button"
             onClick={() => {
-              if (showForm && !editingProjectId) {
+              if (showForm) {
+                setEditingProjectId(null)
                 setShowForm(false)
                 return
               }
