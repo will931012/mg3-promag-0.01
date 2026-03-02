@@ -1045,10 +1045,18 @@ export default function ProjectsPanel({
                             if (detailsView === 'submittals') {
                               if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Continue without saving?')) return
                               const selected = item as SubmittalRecord
+                              setDetailsView('submittals')
+                              setSelectedRfiDetailId(null)
+                              setSelectedSubmittalDetailId(selected.id)
+                              setSubmittalDraft({ ...selected })
                               onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${selected.id}`)
                             } else {
                               if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Continue without saving?')) return
                               const selected = item as RfiRecord
+                              setDetailsView('rfis')
+                              setSelectedSubmittalDetailId(null)
+                              setSelectedRfiDetailId(selected.id)
+                              setRfiDraft({ ...selected })
                               onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${selected.id}`)
                             }
                           }}
@@ -1110,10 +1118,18 @@ export default function ProjectsPanel({
                                 if (detailsView === 'submittals') {
                                   if (hasUnsavedSubmittalDetail && !confirm('You have unsaved Submittal changes. Continue without saving?')) return
                                   const selected = item as SubmittalRecord
+                                  setDetailsView('submittals')
+                                  setSelectedRfiDetailId(null)
+                                  setSelectedSubmittalDetailId(selected.id)
+                                  setSubmittalDraft({ ...selected })
                                   onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/submittals/${selected.id}`)
                                 } else {
                                   if (hasUnsavedRfiDetail && !confirm('You have unsaved RFI changes. Continue without saving?')) return
                                   const selected = item as RfiRecord
+                                  setDetailsView('rfis')
+                                  setSelectedSubmittalDetailId(null)
+                                  setSelectedRfiDetailId(selected.id)
+                                  setRfiDraft({ ...selected })
                                   onNavigate(`/projects/${encodeURIComponent(selectedProject.project_id)}/rfis/${selected.id}`)
                                 }
                               }}
