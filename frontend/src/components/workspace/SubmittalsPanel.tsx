@@ -241,7 +241,12 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     }
 
     const res = editingId ? await updateSubmittal(token, editingId, payload) : await createSubmittal(token, payload)
-    if (!res.ok) return setMessage('Failed to save submittal.')
+    if (!res.ok) {
+      const detail = typeof res.data === 'object' && res.data && 'detail' in res.data
+        ? String((res.data as { detail?: unknown }).detail ?? '')
+        : ''
+      return setMessage(detail || 'Failed to save submittal.')
+    }
     setMessage(editingId ? 'Submittal updated.' : 'Submittal created.')
     setEditingId(null)
     setForm(emptyForm)
@@ -429,7 +434,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 onBlur={() => setTimeout(() => setShowSubcontractorSuggestions(false), 120)}
                 onChange={(e) => {
                   setSentToSubcontractorInput(e.target.value)
-                  setForm((p) => ({ ...p, sent_to_subcontractor: e.target.value }))
+                  setForm((p) => ({ ...p, sent_to_subcontractor: '' }))
                   setShowSubcontractorSuggestions(true)
                 }}
                 placeholder="Search Subcontractor"
@@ -464,7 +469,13 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 onClick={() => {
                   const trimmed = sentToSubcontractorInput.trim()
                   if (!trimmed) return
-                  setForm((p) => ({ ...p, sent_to_subcontractor: trimmed }))
+                  const existing = subcontractors.find((item) => item.name.toLowerCase() === trimmed.toLowerCase())
+                  if (!existing) {
+                    setMessage('Subcontractor must exist in DB. Select one from suggestions or create it first.')
+                    return
+                  }
+                  setSentToSubcontractorInput(existing.name)
+                  setForm((p) => ({ ...p, sent_to_subcontractor: existing.name }))
                   setShowSubcontractorSuggestions(false)
                 }}
                 className="rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
@@ -485,7 +496,10 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                   {form.sent_to_subcontractor}
                   <button
                     type="button"
-                    onClick={() => setForm((p) => ({ ...p, sent_to_subcontractor: '' }))}
+                    onClick={() => {
+                      setForm((p) => ({ ...p, sent_to_subcontractor: '' }))
+                      setSentToSubcontractorInput('')
+                    }}
                     className="rounded-full bg-slate-200 px-1 text-[10px] text-slate-600"
                   >
                     x
@@ -639,7 +653,12 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                       onClick={async () => {
                         if (!confirm(`Delete submittal ${item.id}?`)) return
                         const res = await deleteSubmittal(token, item.id)
-                        if (!res.ok) return setMessage('Failed to delete submittal.')
+                        if (!res.ok) {
+                          const detail = typeof res.data === 'object' && res.data && 'detail' in res.data
+                            ? String((res.data as { detail?: unknown }).detail ?? '')
+                            : ''
+                          return setMessage(detail || 'Failed to delete submittal.')
+                        }
                         await refreshWorkspace(token)
                       }}
                       className="rounded bg-rose-600 px-2 py-1 text-xs text-white"
