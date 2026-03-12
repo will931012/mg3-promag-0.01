@@ -209,28 +209,28 @@ router.put("/:id", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE rfi_tracker
-       SET project_id = $2,
-           rfi_number = $3,
-           subject = $4,
-           description = $5,
-           from_contractor = $6,
-           date_sent = $7,
-           sent_to_aor = $8,
-           sent_to_eor = $9,
-           sent_to_subcontractor = $10,
+       SET project_id = $2::varchar,
+           rfi_number = $3::varchar,
+           subject = $4::varchar,
+           description = $5::text,
+           from_contractor = $6::varchar,
+           date_sent = $7::date,
+           sent_to_aor = $8::varchar,
+           sent_to_eor = $9::varchar,
+           sent_to_subcontractor = $10::varchar,
            sent_to_date = CASE
-             WHEN ($8 IS DISTINCT FROM sent_to_aor OR $9 IS DISTINCT FROM sent_to_eor) THEN COALESCE($11, CURRENT_DATE)
-             ELSE COALESCE($11, sent_to_date)
+             WHEN ($8::varchar IS DISTINCT FROM sent_to_aor OR $9::varchar IS DISTINCT FROM sent_to_eor) THEN COALESCE($11::date, CURRENT_DATE)
+             ELSE COALESCE($11::date, sent_to_date)
            END,
-           response_due = $12,
+           response_due = $12::date,
            date_answered = CASE
-             WHEN $14 = 'Approved' THEN COALESCE($13, date_answered, CURRENT_DATE)
-             ELSE $13
+             WHEN $14::varchar = 'Approved' THEN COALESCE($13::date, date_answered, CURRENT_DATE)
+             ELSE $13::date
            END,
-           status = $14,
-           lifecycle_status = $15,
-           responsible = $16,
-           notes = $17
+           status = $14::varchar,
+           lifecycle_status = $15::varchar,
+           responsible = $16::varchar,
+           notes = $17::text
        WHERE id = $1
        RETURNING
          id,

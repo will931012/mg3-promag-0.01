@@ -216,28 +216,28 @@ router.put("/:id", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE submittal_tracker
-       SET project_id = $2,
-           division_csi = $3,
-           submittal_number = $4,
-           subject = $5,
-           contractor = $6,
-           date_received = $7,
-           sent_to_aor = $8,
-           sent_to_eor = $9,
-           sent_to_subcontractor = $10,
+       SET project_id = $2::varchar,
+           division_csi = $3::varchar,
+           submittal_number = $4::varchar,
+           subject = $5::varchar,
+           contractor = $6::varchar,
+           date_received = $7::date,
+           sent_to_aor = $8::varchar,
+           sent_to_eor = $9::varchar,
+           sent_to_subcontractor = $10::varchar,
            sent_to_date = CASE
-             WHEN ($8 IS DISTINCT FROM sent_to_aor OR $9 IS DISTINCT FROM sent_to_eor) THEN COALESCE($11, CURRENT_DATE)
-             ELSE COALESCE($11, sent_to_date)
+             WHEN ($8::varchar IS DISTINCT FROM sent_to_aor OR $9::varchar IS DISTINCT FROM sent_to_eor) THEN COALESCE($11::date, CURRENT_DATE)
+             ELSE COALESCE($11::date, sent_to_date)
            END,
-           approvers = $12,
-           approval_status = $13,
-           lifecycle_status = $14,
-           revision = $15,
-           due_date = $16,
-           overall_status = $17,
-           responsible = $18,
-           workflow_stage = $19,
-           notes = $20
+           approvers = $12::varchar,
+           approval_status = $13::varchar,
+           lifecycle_status = $14::varchar,
+           revision = $15::varchar,
+           due_date = $16::date,
+           overall_status = $17::varchar,
+           responsible = $18::varchar,
+           workflow_stage = $19::varchar,
+           notes = $20::text
        WHERE id = $1
        RETURNING
          id,

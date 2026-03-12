@@ -508,27 +508,40 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
         <label className="text-sm">Response Due
           <input type="date" value={form.response_due ?? ''} onChange={(e) => setForm((p) => ({ ...p, response_due: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
         </label>
-        <div className="flex gap-2 lg:col-span-4">
-          <button type="submit" className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white">
-            {editingId ? 'Update RFI' : 'Create RFI'}
-          </button>
+        <div className={`lg:col-span-4 ${editingId ? 'sticky bottom-3 z-10 rounded-xl border border-sky-200 bg-sky-50/95 p-3 shadow-lg backdrop-blur' : ''}`}>
           {editingId ? (
-            <button
-              type="button"
-              onClick={() => {
-                setEditingId(null)
-                setForm(emptyForm)
-                setProjectSearch('')
-                setSelectedProjectEorOption('')
-                setSentToSubcontractorInput('')
-                setDescriptionInput('')
-                setSelectedEorType('Civil EOR')
-              }}
-              className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold"
-            >
-              Cancel Edit
-            </button>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-700">Editing mode</p>
+                <p className="text-sm font-medium text-slate-800">RFI #{editingId}. Guarda tus cambios antes de salir.</p>
+              </div>
+            </div>
           ) : null}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className={`rounded px-4 py-2 text-sm font-semibold text-white ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-brand-700'}`}
+            >
+              {editingId ? 'Save Changes' : 'Create RFI'}
+            </button>
+            {editingId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null)
+                  setForm(emptyForm)
+                  setProjectSearch('')
+                  setSelectedProjectEorOption('')
+                  setSentToSubcontractorInput('')
+                  setDescriptionInput('')
+                  setSelectedEorType('Civil EOR')
+                }}
+                className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold"
+              >
+                Cancel Edit
+              </button>
+            ) : null}
+          </div>
         </div>
       </form>
       ) : null}

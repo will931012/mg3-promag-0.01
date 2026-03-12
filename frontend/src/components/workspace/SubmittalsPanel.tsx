@@ -652,28 +652,41 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             </div>
           ) : null}
         </div>
-        <div className="flex gap-2 lg:col-span-4">
-          <button type="submit" className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white">
-            {editingId ? 'Update Submittal' : 'Create Submittal'}
-          </button>
+        <div className={`lg:col-span-4 ${editingId ? 'sticky bottom-3 z-10 rounded-xl border border-amber-200 bg-amber-50/95 p-3 shadow-lg backdrop-blur' : ''}`}>
           {editingId ? (
-            <button
-              type="button"
-              onClick={() => {
-                setEditingId(null)
-                setForm(emptyForm)
-                setProjectSearch('')
-                setSelectedProjectEorOption('')
-                setSentToSubcontractorInput('')
-                setApproverInput('')
-                setNoteInput('')
-                setSelectedEorType('Civil EOR')
-              }}
-              className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold"
-            >
-              Cancel Edit
-            </button>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">Editing mode</p>
+                <p className="text-sm font-medium text-slate-800">Submittal #{editingId}. Guarda tus cambios antes de salir.</p>
+              </div>
+            </div>
           ) : null}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className={`rounded px-4 py-2 text-sm font-semibold text-white ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-brand-700'}`}
+            >
+              {editingId ? 'Save Changes' : 'Create Submittal'}
+            </button>
+            {editingId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null)
+                  setForm(emptyForm)
+                  setProjectSearch('')
+                  setSelectedProjectEorOption('')
+                  setSentToSubcontractorInput('')
+                  setApproverInput('')
+                  setNoteInput('')
+                  setSelectedEorType('Civil EOR')
+                }}
+                className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold"
+              >
+                Cancel Edit
+              </button>
+            ) : null}
+          </div>
         </div>
       </form>
       ) : null}

@@ -43,6 +43,12 @@ const SUBMITTAL_STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] 
 const RFI_STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as const
 const NOTES_SEPARATOR = '\n\n'
 
+function getResponseDetail(data: unknown): string {
+  if (!data || typeof data !== 'object' || !('detail' in data)) return ''
+  const detail = (data as { detail?: unknown }).detail
+  return typeof detail === 'string' ? detail : ''
+}
+
 function splitMultiValues(value: string | null): string[] {
   return String(value || '')
     .split(MULTI_VALUE_SEPARATOR)
@@ -346,10 +352,12 @@ export default function ProjectsPanel({
 
   const handleSaveSubmittalDetail = async () => {
     if (!selectedSubmittalDetailId || !submittalDraft) return
+    const normalizedProjectId = toNullableString(submittalDraft.project_id)
+    if (!normalizedProjectId) return setMessage('Project ID is required to update this submittal.')
     setIsSavingSubmittalDetail(true)
     const payload: Omit<SubmittalRecord, 'id'> = {
       ...submittalDraft,
-      project_id: toNullableString(submittalDraft.project_id),
+      project_id: normalizedProjectId,
       division_csi: toNullableString(submittalDraft.division_csi),
       submittal_number: toNullableString(submittalDraft.submittal_number),
       subject: toNullableString(submittalDraft.subject),
@@ -370,22 +378,33 @@ export default function ProjectsPanel({
       notes: toNullableString(submittalDraft.notes),
       days_pending: null,
     }
-    const res = await updateSubmittal(token, selectedSubmittalDetailId, payload)
-    if (!res.ok) {
+    try {
+      const res = await updateSubmittal(token, selectedSubmittalDetailId, payload)
+      if (!res.ok) {
+        return setMessage(getResponseDetail(res.data) || 'Failed to update submittal from detail page.')
+      }
+      if (res.data) {
+        setSubmittalDraft({ ...res.data })
+      }
+      const nextProjectId = res.data?.project_id ?? normalizedProjectId
+      if (nextProjectId && nextProjectId !== routeProjectId) {
+        onNavigate(`/projects/${encodeURIComponent(nextProjectId)}/submittals/${selectedSubmittalDetailId}`)
+      }
+      setMessage('Submittal updated.')
+      await refreshWorkspace(token)
+    } finally {
       setIsSavingSubmittalDetail(false)
-      return setMessage('Failed to update submittal from detail page.')
     }
-    setMessage('Submittal updated.')
-    await refreshWorkspace(token)
-    setIsSavingSubmittalDetail(false)
   }
 
   const handleSaveRfiDetail = async () => {
     if (!selectedRfiDetailId || !rfiDraft) return
+    const normalizedProjectId = toNullableString(rfiDraft.project_id)
+    if (!normalizedProjectId) return setMessage('Project ID is required to update this RFI.')
     setIsSavingRfiDetail(true)
     const payload: Omit<RfiRecord, 'id'> = {
       ...rfiDraft,
-      project_id: toNullableString(rfiDraft.project_id),
+      project_id: normalizedProjectId,
       rfi_number: toNullableString(rfiDraft.rfi_number),
       subject: toNullableString(rfiDraft.subject),
       description: toNullableString(rfiDraft.description),
@@ -403,14 +422,23 @@ export default function ProjectsPanel({
       notes: toNullableString(rfiDraft.notes),
       days_open: null,
     }
-    const res = await updateRfi(token, selectedRfiDetailId, payload)
-    if (!res.ok) {
+    try {
+      const res = await updateRfi(token, selectedRfiDetailId, payload)
+      if (!res.ok) {
+        return setMessage(getResponseDetail(res.data) || 'Failed to update RFI from detail page.')
+      }
+      if (res.data) {
+        setRfiDraft({ ...res.data })
+      }
+      const nextProjectId = res.data?.project_id ?? normalizedProjectId
+      if (nextProjectId && nextProjectId !== routeProjectId) {
+        onNavigate(`/projects/${encodeURIComponent(nextProjectId)}/rfis/${selectedRfiDetailId}`)
+      }
+      setMessage('RFI updated.')
+      await refreshWorkspace(token)
+    } finally {
       setIsSavingRfiDetail(false)
-      return setMessage('Failed to update RFI from detail page.')
     }
-    setMessage('RFI updated.')
-    await refreshWorkspace(token)
-    setIsSavingRfiDetail(false)
   }
 
   const handleCreateAor = async () => {
