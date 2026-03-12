@@ -125,7 +125,7 @@ export default function WorkspacePage({
     ['users', 'Users'],
   ]
   const menuToggleLabel = menuOpen ? 'Cerrar menu' : 'Abrir menu'
-  const sidebarMarkers = ['GRID', 'LVL', 'AOR', 'EOR', 'RFI', 'SUB']
+  const sidebarMarkers = [1, 2, 3, 4, 5, 6]
 
   return (
     <div className="neo-dashboard min-h-screen bg-[#151823] px-3 py-5 md:px-8 md:py-6">
@@ -142,22 +142,26 @@ export default function WorkspacePage({
             aria-label={menuToggleLabel}
             title={menuToggleLabel}
           >
-            <span className="text-lg leading-none">{menuOpen ? '[' : ']'}{menuOpen ? '<' : '>'}</span>
-            <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.18em]">{menuOpen ? 'Hide Nav' : 'Show Nav'}</span>
+            {menuOpen ? (
+              <span className="relative block h-4 w-4" aria-hidden="true">
+                <span className="absolute left-1/2 top-1/2 h-[2px] w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-current" />
+                <span className="absolute left-1/2 top-1/2 h-[2px] w-4 -translate-x-1/2 -translate-y-1/2 -rotate-45 rounded-full bg-current" />
+              </span>
+            ) : (
+              <span className="relative block h-4 w-4" aria-hidden="true">
+                <span className="absolute left-0 top-0 h-[2px] w-4 rounded-full bg-current" />
+                <span className="absolute left-0 top-[6px] h-[2px] w-4 rounded-full bg-current" />
+                <span className="absolute left-0 top-[12px] h-[2px] w-4 rounded-full bg-current" />
+              </span>
+            )}
           </button>
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#7b83a8]">
             <div className="relative flex h-full flex-col items-center justify-center gap-3">
               <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-[#2e3a60] to-transparent" />
-              <div className="relative flex h-8 w-8 items-center justify-center rounded-md border border-[#3a4b78] bg-[#151a30] text-[9px] font-bold tracking-[0.18em] text-[#d3dcff]">
-                AX
-              </div>
             {sidebarMarkers.map((marker) => (
                 <div key={marker} className="relative flex h-10 w-10 items-center justify-center">
                   <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#89a4ff]" />
                   <span className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#314067]" />
-                  <span className="absolute left-[calc(100%+6px)] top-1/2 -translate-y-1/2 rounded-md border border-[#314067] bg-[#151a30] px-1.5 py-0.5 text-[8px] font-semibold tracking-[0.14em] text-[#aeb8df]">
-                    {marker}
-                  </span>
                 </div>
             ))}
             <div className="relative grid h-12 w-12 grid-cols-3 gap-1 rounded-lg border border-[#314067] bg-[#151a30] p-1">
