@@ -171,6 +171,8 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
   const [sortColumn, setSortColumn] = useState<'id' | 'submittal_number' | 'overall_status' | 'due_date'>('id')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
+  const [rowDrafts, setRowDrafts] = useState<Record<number, Omit<SubmittalRecord, 'id'>>>({})
+  const [savingRowId, setSavingRowId] = useState<number | null>(null)
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
@@ -389,6 +391,60 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
     setNoteInput('')
     setSelectedEorType('Civil EOR')
     setShowForm(false)
+    await refreshWorkspace(token)
+  }
+
+  const getRowValue = (item: SubmittalRecord): Omit<SubmittalRecord, 'id'> => rowDrafts[item.id] ?? { ...item }
+  const setRowValue = (item: SubmittalRecord, field: keyof Omit<SubmittalRecord, 'id'>, value: string | number | null) => {
+    const base = getRowValue(item)
+    setRowDrafts((prev) => ({
+      ...prev,
+      [item.id]: {
+        ...base,
+        [field]: value,
+      },
+    }))
+  }
+  const handleSaveRow = async (item: SubmittalRecord) => {
+    const draft = getRowValue(item)
+    const payload = {
+      ...draft,
+      project_id: toNullableString(draft.project_id),
+      division_csi: toNullableString(draft.division_csi),
+      submittal_number: toNullableString(draft.submittal_number),
+      subject: toNullableString(draft.subject),
+      contractor: toNullableString(draft.contractor),
+      date_received: toNullableString(draft.date_received),
+      sent_to_aor: toNullableString(draft.sent_to_aor),
+      sent_to_eor: toNullableString(draft.sent_to_eor),
+      sent_to_subcontractor: toNullableString(draft.sent_to_subcontractor),
+      sent_to_date: toNullableString(draft.sent_to_date),
+      approvers: toNullableString(draft.approvers),
+      approval_status: toNullableString(draft.approval_status),
+      lifecycle_status: getSubmittalLifecycleStatus(draft.overall_status || draft.approval_status),
+      revision: toNullableString(draft.revision),
+      due_date: toNullableString(draft.due_date),
+      days_pending: null,
+      overall_status: toNullableString(draft.overall_status),
+      responsible: toNullableString(draft.responsible),
+      workflow_stage: toNullableString(draft.workflow_stage),
+      notes: toNullableString(draft.notes),
+    }
+    setSavingRowId(item.id)
+    const res = await updateSubmittal(token, item.id, payload)
+    setSavingRowId(null)
+    if (!res.ok) {
+      const detail = typeof res.data === 'object' && res.data && 'detail' in res.data
+        ? String((res.data as { detail?: unknown }).detail ?? '')
+        : ''
+      return setMessage(detail || 'Failed to save submittal row.')
+    }
+    setRowDrafts((prev) => {
+      const next = { ...prev }
+      delete next[item.id]
+      return next
+    })
+    setMessage(`Submittal ${item.id} updated.`)
     await refreshWorkspace(token)
   }
 
@@ -847,47 +903,61 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
         />
       </div>
       <div className="ui-scroll mt-3 overflow-x-auto">
-        <table className="ui-table min-w-[1000px]">
+        <table className="ui-table min-w-[1450px]">
           <thead><tr className="bg-slate-100">
             <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('id')} className="font-semibold">ID</button></th>
             <th className="border px-3 py-2 text-left">Project</th>
             <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('submittal_number')} className="font-semibold">Submittal #</button></th>
+            <th className="border px-3 py-2 text-left">Subject</th>
             <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('overall_status')} className="font-semibold">Overall Status</button></th>
             <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('due_date')} className="font-semibold">Due Date</button></th>
+            <th className="border px-3 py-2 text-left">Responsible</th>
+            <th className="border px-3 py-2 text-left">Contractor</th>
             <th className="border px-3 py-2 text-left">Actions</th>
           </tr></thead>
           <tbody>
             {pagedSubmittals.map((item) => (
               <tr key={item.id}>
                 <td className="border px-3 py-2">{item.id}</td>
-                <td className="border px-3 py-2">{item.project_id ? (projectNameById[item.project_id] ?? 'Unknown Project') : ''}</td>
-                <td className="border px-3 py-2">{item.submittal_number}</td>
                 <td className="border px-3 py-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge label={item.overall_status || item.approval_status || 'Opened'} tone={item.lifecycle_status === 'closed' ? 'success' : 'info'} />
-                    {item.due_date && item.due_date < todayIsoDate() ? <StatusBadge label="Late" tone="danger" /> : null}
-                  </div>
+                  <select value={getRowValue(item).project_id ?? ''} onChange={(event) => setRowValue(item, 'project_id', event.target.value)} className="w-full rounded border px-2 py-1 text-sm">
+                    <option value="">Select project</option>
+                    {projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.project_name}</option>)}
+                  </select>
                 </td>
-                <td className="border px-3 py-2">{item.due_date ?? ''}</td>
+                <td className="border px-3 py-2"><input value={getRowValue(item).submittal_number ?? ''} onChange={(event) => setRowValue(item, 'submittal_number', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2"><input value={getRowValue(item).subject ?? ''} onChange={(event) => setRowValue(item, 'subject', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2">
+                  <select value={getRowValue(item).overall_status ?? ''} onChange={(event) => setRowValue(item, 'overall_status', event.target.value)} className="w-full rounded border px-2 py-1 text-sm">
+                    <option value="">Select status</option>
+                    {OVERALL_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                </td>
+                <td className="border px-3 py-2"><input type="date" value={getRowValue(item).due_date ?? ''} onChange={(event) => setRowValue(item, 'due_date', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2"><input value={getRowValue(item).responsible ?? ''} onChange={(event) => setRowValue(item, 'responsible', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2"><input value={getRowValue(item).contractor ?? ''} onChange={(event) => setRowValue(item, 'contractor', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
                 <td className="border px-3 py-2">
                   <div className="flex gap-2">
                     <button
-                      onClick={() => {
-                        setShowForm(true)
-                        setEditingId(item.id)
-                        setForm({ ...item })
-                        setProjectSearch(item.project_id ? (projectNameById[item.project_id] ?? '') : '')
-                        setSelectedProjectEorOption('')
-                        setSentToSubcontractorInput(item.sent_to_subcontractor ?? '')
-                        setApproverInput('')
-                        setNoteInput('')
-                        setSelectedEorType('Civil EOR')
-                      }}
-                      className="rounded bg-slate-200 px-2 py-1 text-xs"
+                      type="button"
+                      onClick={() => void handleSaveRow(item)}
+                      className="rounded bg-emerald-600 px-2 py-1 text-xs text-white"
                     >
-                      Edit
+                      {savingRowId === item.id ? 'Saving...' : 'Save'}
                     </button>
                     <button
+                      type="button"
+                      onClick={() => setRowDrafts((prev) => {
+                        const next = { ...prev }
+                        delete next[item.id]
+                        return next
+                      })}
+                      className="rounded bg-slate-200 px-2 py-1 text-xs"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
                       onClick={async () => {
                         if (!confirm(`Delete submittal ${item.id}?`)) return
                         const res = await deleteSubmittal(token, item.id)
@@ -909,7 +979,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             ))}
             {sortedSubmittals.length === 0 ? (
               <tr>
-                <td colSpan={6} className="border px-3 py-8">
+                <td colSpan={9} className="border px-3 py-8">
                   <EmptyState
                     title="No submittals match"
                     description="Try a different search or status filter, or create a new submittal."

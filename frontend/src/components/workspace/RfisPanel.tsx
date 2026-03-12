@@ -120,6 +120,8 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   const [sortColumn, setSortColumn] = useState<'id' | 'rfi_number' | 'status' | 'response_due'>('id')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
+  const [rowDrafts, setRowDrafts] = useState<Record<number, Omit<RfiRecord, 'id'>>>({})
+  const [savingRowId, setSavingRowId] = useState<number | null>(null)
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
@@ -320,6 +322,52 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
     setDescriptionInput('')
     setSelectedEorType('Civil EOR')
     setShowForm(false)
+    await refreshWorkspace(token)
+  }
+
+  const getRowValue = (item: RfiRecord): Omit<RfiRecord, 'id'> => rowDrafts[item.id] ?? { ...item }
+  const setRowValue = (item: RfiRecord, field: keyof Omit<RfiRecord, 'id'>, value: string | number | null) => {
+    const base = getRowValue(item)
+    setRowDrafts((prev) => ({
+      ...prev,
+      [item.id]: {
+        ...base,
+        [field]: value,
+      },
+    }))
+  }
+  const handleSaveRow = async (item: RfiRecord) => {
+    const draft = getRowValue(item)
+    const payload = {
+      ...draft,
+      project_id: toNullableString(draft.project_id),
+      rfi_number: toNullableString(draft.rfi_number),
+      subject: toNullableString(draft.subject),
+      description: toNullableString(draft.description),
+      from_contractor: toNullableString(draft.from_contractor),
+      date_sent: toNullableString(draft.date_sent),
+      sent_to_aor: toNullableString(draft.sent_to_aor),
+      sent_to_eor: toNullableString(draft.sent_to_eor),
+      sent_to_subcontractor: toNullableString(draft.sent_to_subcontractor),
+      sent_to_date: toNullableString(draft.sent_to_date),
+      response_due: toNullableString(draft.response_due),
+      date_answered: toNullableString(draft.date_answered),
+      status: toNullableString(draft.status),
+      lifecycle_status: getRfiLifecycleStatus(draft.status),
+      days_open: null,
+      responsible: toNullableString(draft.responsible),
+      notes: toNullableString(draft.notes),
+    }
+    setSavingRowId(item.id)
+    const res = await updateRfi(token, item.id, payload)
+    setSavingRowId(null)
+    if (!res.ok) return setMessage('Failed to save RFI row.')
+    setRowDrafts((prev) => {
+      const next = { ...prev }
+      delete next[item.id]
+      return next
+    })
+    setMessage(`RFI ${item.id} updated.`)
     await refreshWorkspace(token)
   }
 
@@ -708,46 +756,63 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
         />
       </div>
       <div className="ui-scroll mt-3 overflow-x-auto">
-        <table className="ui-table min-w-[900px]">
+        <table className="ui-table min-w-[1500px]">
           <thead><tr className="bg-slate-100">
             <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('id')} className="font-semibold">ID</button></th>
             <th className="border px-3 py-2 text-left">Project</th>
             <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('rfi_number')} className="font-semibold">RFI #</button></th>
             <th className="border px-3 py-2 text-left">Subject</th>
             <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('status')} className="font-semibold">Status</button></th>
+            <th className="border px-3 py-2 text-left">Response Due</th>
+            <th className="border px-3 py-2 text-left">Date Answered</th>
+            <th className="border px-3 py-2 text-left">Responsible</th>
+            <th className="border px-3 py-2 text-left">Contractor</th>
             <th className="border px-3 py-2 text-left">Actions</th>
           </tr></thead>
           <tbody>
             {pagedRfis.map((item) => (
               <tr key={item.id}>
                 <td className="border px-3 py-2">{item.id}</td>
-                <td className="border px-3 py-2">{item.project_id ? (projectNameById[item.project_id] ?? 'Unknown Project') : ''}</td>
-                <td className="border px-3 py-2">{item.rfi_number}</td>
-                <td className="border px-3 py-2">{item.subject}</td>
                 <td className="border px-3 py-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge label={item.status || 'Opened'} tone={item.lifecycle_status === 'closed' ? 'success' : 'info'} />
-                    {item.response_due && item.response_due < todayIsoDate() ? <StatusBadge label="Overdue" tone="danger" /> : null}
-                  </div>
+                  <select value={getRowValue(item).project_id ?? ''} onChange={(event) => setRowValue(item, 'project_id', event.target.value)} className="w-full rounded border px-2 py-1 text-sm">
+                    <option value="">Select project</option>
+                    {projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.project_name}</option>)}
+                  </select>
                 </td>
+                <td className="border px-3 py-2"><input value={getRowValue(item).rfi_number ?? ''} onChange={(event) => setRowValue(item, 'rfi_number', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2"><input value={getRowValue(item).subject ?? ''} onChange={(event) => setRowValue(item, 'subject', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2">
+                  <select value={getRowValue(item).status ?? ''} onChange={(event) => setRowValue(item, 'status', event.target.value)} className="w-full rounded border px-2 py-1 text-sm">
+                    <option value="">Select status</option>
+                    {STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                </td>
+                <td className="border px-3 py-2"><input type="date" value={getRowValue(item).response_due ?? ''} onChange={(event) => setRowValue(item, 'response_due', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2"><input type="date" value={getRowValue(item).date_answered ?? ''} onChange={(event) => setRowValue(item, 'date_answered', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2"><input value={getRowValue(item).responsible ?? ''} onChange={(event) => setRowValue(item, 'responsible', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                <td className="border px-3 py-2"><input value={getRowValue(item).from_contractor ?? ''} onChange={(event) => setRowValue(item, 'from_contractor', event.target.value)} className="w-full rounded border px-2 py-1 text-sm" /></td>
                 <td className="border px-3 py-2">
                   <div className="flex gap-2">
                     <button
-                      onClick={() => {
-                        setShowForm(true)
-                        setEditingId(item.id)
-                        setForm({ ...item })
-                        setProjectSearch(item.project_id ? (projectNameById[item.project_id] ?? '') : '')
-                        setSelectedProjectEorOption('')
-                        setSentToSubcontractorInput(item.sent_to_subcontractor ?? '')
-                        setDescriptionInput('')
-                        setSelectedEorType('Civil EOR')
-                      }}
-                      className="rounded bg-slate-200 px-2 py-1 text-xs"
+                      type="button"
+                      onClick={() => void handleSaveRow(item)}
+                      className="rounded bg-emerald-600 px-2 py-1 text-xs text-white"
                     >
-                      Edit
+                      {savingRowId === item.id ? 'Saving...' : 'Save'}
                     </button>
                     <button
+                      type="button"
+                      onClick={() => setRowDrafts((prev) => {
+                        const next = { ...prev }
+                        delete next[item.id]
+                        return next
+                      })}
+                      className="rounded bg-slate-200 px-2 py-1 text-xs"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
                       onClick={async () => {
                         if (!confirm(`Delete RFI ${item.id}?`)) return
                         const res = await deleteRfi(token, item.id)
@@ -764,7 +829,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
             ))}
             {sortedRfis.length === 0 ? (
               <tr>
-                <td colSpan={6} className="border px-3 py-8">
+                <td colSpan={10} className="border px-3 py-8">
                   <EmptyState
                     title="No RFIs match"
                     description="Try changing filters or add a new RFI."
