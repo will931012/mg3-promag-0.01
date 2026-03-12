@@ -124,6 +124,8 @@ export default function WorkspacePage({
     ['rfis', 'RFIs'],
     ['users', 'Users'],
   ]
+  const menuToggleLabel = menuOpen ? 'Cerrar menu' : 'Abrir menu'
+  const sidebarMarkers = ['A1', 'B2', 'C3', 'D4', 'E5', 'F6']
 
   return (
     <div className="neo-dashboard min-h-screen bg-[#151823] px-3 py-5 md:px-8 md:py-6">
@@ -136,24 +138,28 @@ export default function WorkspacePage({
           <button
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
-            className="mt-1 flex items-center gap-1 rounded-full p-1 hover:bg-white/10"
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            title={menuOpen ? 'Close menu' : 'Open menu'}
+            className="mt-1 flex min-h-[44px] min-w-[44px] flex-col items-center justify-center rounded-xl border border-white/10 bg-[#171c31] px-2 py-2 text-[#dbe2ff] transition hover:bg-[#212844]"
+            aria-label={menuToggleLabel}
+            title={menuToggleLabel}
           >
-            <span className="h-2 w-2 rounded-full bg-[#ff5f57]" />
-            <span className="h-2 w-2 rounded-full bg-[#febc2e]" />
-            <span className="h-2 w-2 rounded-full bg-[#28c840]" />
+            <span className="text-base leading-none">{menuOpen ? '<' : '>'}</span>
+            <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em]">Menu</span>
           </button>
-          <div className="flex flex-col gap-4 text-[#7b83a8]">
-            <span>o</span>
-            <span>o</span>
-            <span>o</span>
-            <span>o</span>
-            <span>o</span>
-            <span>o</span>
-            <span>o</span>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#7b83a8]">
+            <div className="h-10 w-[2px] rounded-full bg-gradient-to-b from-[#2f3657] to-transparent" />
+            {sidebarMarkers.map((marker) => (
+              <div key={marker} className="flex h-9 w-9 items-center justify-center rounded-full border border-[#314067] bg-[#151a30] text-[10px] font-semibold tracking-[0.12em] text-[#aeb8df]">
+                {marker}
+              </div>
+            ))}
+            <div className="grid h-12 w-8 grid-cols-2 gap-1 rounded-lg border border-[#314067] bg-[#151a30] p-1">
+              <span className="rounded-sm bg-[#5a678f]" />
+              <span className="rounded-sm bg-[#5a678f]" />
+              <span className="rounded-sm bg-[#5a678f]" />
+              <span className="rounded-sm bg-[#5a678f]" />
+            </div>
           </div>
-          <span className="mb-1 text-xs text-[#7b83a8]">*</span>
+          <span className="mb-1 rounded-md border border-[#314067] bg-[#151a30] px-2 py-1 text-[10px] font-semibold tracking-[0.16em] text-[#9ba7cf]">PLAN</span>
         </aside>
 
         <aside
@@ -196,7 +202,7 @@ export default function WorkspacePage({
               onClick={() => setMenuOpen(true)}
               className="rounded-lg border border-white/10 px-3 py-2 text-sm text-[#dbe2ff] md:hidden"
             >
-              Menu
+              Abrir menu
             </button>
             <label className="min-w-[220px] flex-1">
               <input
