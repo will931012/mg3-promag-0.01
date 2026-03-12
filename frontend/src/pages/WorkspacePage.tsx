@@ -125,7 +125,7 @@ export default function WorkspacePage({
     ['users', 'Users'],
   ]
   const menuToggleLabel = menuOpen ? 'Cerrar menu' : 'Abrir menu'
-  const sidebarMarkers = ['A1', 'B2', 'C3', 'D4', 'E5', 'F6']
+  const sidebarMarkers = ['GRID', 'LVL', 'AOR', 'EOR', 'RFI', 'SUB']
 
   return (
     <div className="neo-dashboard min-h-screen bg-[#151823] px-3 py-5 md:px-8 md:py-6">
@@ -138,28 +138,42 @@ export default function WorkspacePage({
           <button
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
-            className="mt-1 flex min-h-[44px] min-w-[44px] flex-col items-center justify-center rounded-xl border border-white/10 bg-[#171c31] px-2 py-2 text-[#dbe2ff] transition hover:bg-[#212844]"
+            className="mt-1 flex min-h-[52px] w-full flex-col items-center justify-center rounded-xl border border-[#2f3b61] bg-[linear-gradient(180deg,#1a2138,#141a2d)] px-2 py-2 text-[#dbe2ff] transition hover:bg-[#212844]"
             aria-label={menuToggleLabel}
             title={menuToggleLabel}
           >
-            <span className="text-base leading-none">{menuOpen ? '<' : '>'}</span>
-            <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em]">Menu</span>
+            <span className="text-lg leading-none">{menuOpen ? '[' : ']'}{menuOpen ? '<' : '>'}</span>
+            <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.18em]">{menuOpen ? 'Hide Nav' : 'Show Nav'}</span>
           </button>
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#7b83a8]">
-            <div className="h-10 w-[2px] rounded-full bg-gradient-to-b from-[#2f3657] to-transparent" />
-            {sidebarMarkers.map((marker) => (
-              <div key={marker} className="flex h-9 w-9 items-center justify-center rounded-full border border-[#314067] bg-[#151a30] text-[10px] font-semibold tracking-[0.12em] text-[#aeb8df]">
-                {marker}
+            <div className="relative flex h-full flex-col items-center justify-center gap-3">
+              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-[#2e3a60] to-transparent" />
+              <div className="relative flex h-8 w-8 items-center justify-center rounded-md border border-[#3a4b78] bg-[#151a30] text-[9px] font-bold tracking-[0.18em] text-[#d3dcff]">
+                AX
               </div>
+            {sidebarMarkers.map((marker) => (
+                <div key={marker} className="relative flex h-10 w-10 items-center justify-center">
+                  <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#89a4ff]" />
+                  <span className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#314067]" />
+                  <span className="absolute left-[calc(100%+6px)] top-1/2 -translate-y-1/2 rounded-md border border-[#314067] bg-[#151a30] px-1.5 py-0.5 text-[8px] font-semibold tracking-[0.14em] text-[#aeb8df]">
+                    {marker}
+                  </span>
+                </div>
             ))}
-            <div className="grid h-12 w-8 grid-cols-2 gap-1 rounded-lg border border-[#314067] bg-[#151a30] p-1">
+            <div className="relative grid h-12 w-12 grid-cols-3 gap-1 rounded-lg border border-[#314067] bg-[#151a30] p-1">
               <span className="rounded-sm bg-[#5a678f]" />
+              <span className="rounded-sm bg-[#2d3758]" />
               <span className="rounded-sm bg-[#5a678f]" />
+              <span className="rounded-sm bg-[#2d3758]" />
+              <span className="rounded-sm bg-[#89a4ff]" />
+              <span className="rounded-sm bg-[#2d3758]" />
               <span className="rounded-sm bg-[#5a678f]" />
+              <span className="rounded-sm bg-[#2d3758]" />
               <span className="rounded-sm bg-[#5a678f]" />
             </div>
+            </div>
           </div>
-          <span className="mb-1 rounded-md border border-[#314067] bg-[#151a30] px-2 py-1 text-[10px] font-semibold tracking-[0.16em] text-[#9ba7cf]">PLAN</span>
+          <span className="mb-1 rounded-md border border-[#314067] bg-[#151a30] px-2 py-1 text-[10px] font-semibold tracking-[0.16em] text-[#9ba7cf]">SHEET A-01</span>
         </aside>
 
         <aside
