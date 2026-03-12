@@ -130,7 +130,7 @@ export default function WorkspacePage({
   return (
     <div className="neo-dashboard min-h-screen bg-[#151823] px-3 py-5 md:px-8 md:py-6">
       <div
-        className={`mx-auto grid w-full max-w-[1500px] grid-cols-1 gap-3 rounded-[26px] border border-white/5 bg-[linear-gradient(130deg,#141726,#1a1e2f)] p-3 shadow-[0_40px_80px_rgba(0,0,0,0.45)] ${
+        className={`grid w-full grid-cols-1 gap-3 rounded-[26px] border border-white/5 bg-[linear-gradient(130deg,#141726,#1a1e2f)] p-3 shadow-[0_40px_80px_rgba(0,0,0,0.45)] ${
           menuOpen ? 'md:grid-cols-[60px_220px_1fr]' : 'md:grid-cols-[60px_1fr]'
         }`}
       >
@@ -177,7 +177,6 @@ export default function WorkspacePage({
             </div>
             </div>
           </div>
-          <span className="mb-1 rounded-md border border-[#314067] bg-[#151a30] px-2 py-1 text-[10px] font-semibold tracking-[0.16em] text-[#9ba7cf]">SHEET A-01</span>
         </aside>
 
         <aside
