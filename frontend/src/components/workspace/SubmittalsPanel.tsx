@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { EOR_TYPES } from '../../app/eorTypes'
 import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
+import { downloadCsv, downloadExcelHtml, sortRecords } from '../../app/tableUtils'
 import { createSubcontractor, createSubmittal, deleteSubmittal, fetchSubcontractors, updateSubmittal } from '../../services/workspaceService'
 import type { ProjectRecord, SubcontractorRecord, SubmittalRecord } from '../../types/workspace'
 import EmptyState from '../common/EmptyState'
@@ -23,6 +25,8 @@ type SubmittalFormErrors = {
   sent_to_date?: string
   due_date?: string
 }
+
+type TimingFilter = 'all' | 'late' | 'this_week'
 
 const DIVISION_CSI_GROUPS = [
   {
@@ -121,12 +125,6 @@ function removeNote(current: string | null, note: string): string {
   return splitNotes(current).filter((item) => item !== note).join(NOTES_SEPARATOR)
 }
 
-function escapeCsv(value: unknown): string {
-  const normalized = String(value ?? '')
-  if (!/[",\n]/.test(normalized)) return normalized
-  return `"${normalized.replace(/"/g, '""')}"`
-}
-
 const emptyForm: Omit<SubmittalRecord, 'id'> = {
   project_id: '',
   division_csi: '',
@@ -151,6 +149,7 @@ const emptyForm: Omit<SubmittalRecord, 'id'> = {
 }
 
 export default function SubmittalsPanel({ token, projects, submittals, setMessage, refreshWorkspace }: SubmittalsPanelProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [form, setForm] = useState<Omit<SubmittalRecord, 'id'>>(emptyForm)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -167,6 +166,11 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
   const [newSubcontractorName, setNewSubcontractorName] = useState('')
   const [listSearch, setListSearch] = useState('')
   const [listStatusFilter, setListStatusFilter] = useState<'all' | 'opened' | 'closed'>('all')
+  const [listTimingFilter, setListTimingFilter] = useState<TimingFilter>('all')
+  const [responsibleFilter, setResponsibleFilter] = useState('')
+  const [sortColumn, setSortColumn] = useState<'id' | 'submittal_number' | 'overall_status' | 'due_date'>('id')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [page, setPage] = useState(1)
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
@@ -227,6 +231,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
   }, [form.sent_to_aor, form.sent_to_eor, form.sent_to_subcontractor])
   const filteredTableSubmittals = useMemo(() => {
     const query = listSearch.trim().toLowerCase()
+    const responsibleQuery = responsibleFilter.trim().toLowerCase()
     return submittals.filter((item) => {
       const lifecycle = String(item.lifecycle_status || '').toLowerCase()
       const statusPass =
@@ -234,9 +239,40 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       const searchPass = query.length === 0
         ? true
         : `${item.submittal_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query)
-      return statusPass && searchPass
+      const responsiblePass = responsibleQuery.length === 0
+        ? true
+        : `${item.responsible || ''} ${item.contractor || ''}`.toLowerCase().includes(responsibleQuery)
+      const timingPass =
+        listTimingFilter === 'all'
+          ? true
+          : listTimingFilter === 'late'
+            ? Boolean(item.due_date && item.due_date < todayIsoDate() && lifecycle !== 'closed')
+            : Boolean(item.due_date && item.due_date >= todayIsoDate() && item.due_date <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10))
+      return statusPass && searchPass && responsiblePass && timingPass
     })
-  }, [submittals, listSearch, listStatusFilter])
+  }, [submittals, listSearch, listStatusFilter, responsibleFilter, listTimingFilter])
+
+  useEffect(() => {
+    setListSearch(searchParams.get('search') ?? '')
+    const status = searchParams.get('status')
+    setListStatusFilter(status === 'opened' || status === 'closed' ? status : 'all')
+    const timing = searchParams.get('timing')
+    setListTimingFilter(timing === 'late' || timing === 'this_week' ? timing : 'all')
+    setResponsibleFilter(searchParams.get('responsible') ?? '')
+  }, [searchParams])
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    if (listSearch.trim()) next.set('search', listSearch)
+    else next.delete('search')
+    if (listStatusFilter !== 'all') next.set('status', listStatusFilter)
+    else next.delete('status')
+    if (listTimingFilter !== 'all') next.set('timing', listTimingFilter)
+    else next.delete('timing')
+    if (responsibleFilter.trim()) next.set('responsible', responsibleFilter)
+    else next.delete('responsible')
+    setSearchParams(next, { replace: true })
+  }, [listSearch, listStatusFilter, listTimingFilter, responsibleFilter, searchParams, setSearchParams])
   const formErrors = useMemo<SubmittalFormErrors>(() => {
     const errors: SubmittalFormErrors = {}
     if (!form.project_id?.trim()) errors.project_id = 'Project is required.'
@@ -251,7 +287,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
 
   const exportSubmittalsCsv = () => {
     const headers = ['ID', 'Project ID', 'Project Name', 'Submittal Number', 'Subject', 'Overall Status', 'Approval Status', 'Due Date', 'Responsible']
-    const rows = filteredTableSubmittals.map((item) => [
+    const rows = sortedSubmittals.map((item) => [
       item.id,
       item.project_id ?? '',
       item.project_id ? (projectNameById[item.project_id] ?? '') : '',
@@ -262,15 +298,35 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       item.due_date ?? '',
       item.responsible ?? '',
     ])
-    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'submittals-export.csv'
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadCsv('submittals-export.csv', headers, rows)
   }
+  const exportSubmittalsExcel = () => {
+    const headers = ['ID', 'Project ID', 'Project Name', 'Submittal Number', 'Subject', 'Overall Status', 'Approval Status', 'Due Date', 'Responsible']
+    const rows = sortedSubmittals.map((item) => [item.id, item.project_id ?? '', item.project_id ? (projectNameById[item.project_id] ?? '') : '', item.submittal_number ?? '', item.subject ?? '', item.overall_status ?? '', item.approval_status ?? '', item.due_date ?? '', item.responsible ?? ''])
+    downloadExcelHtml('submittals-export.xls', headers, rows)
+  }
+  const sortedSubmittals = useMemo(() => {
+    const selector = (item: SubmittalRecord) => {
+      if (sortColumn === 'overall_status') return item.overall_status || item.approval_status || ''
+      return item[sortColumn]
+    }
+    return sortRecords(filteredTableSubmittals, selector, sortDirection)
+  }, [filteredTableSubmittals, sortColumn, sortDirection])
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(sortedSubmittals.length / pageSize))
+  const pagedSubmittals = useMemo(() => sortedSubmittals.slice((page - 1) * pageSize, page * pageSize), [sortedSubmittals, page])
+  const handleSort = (column: 'id' | 'submittal_number' | 'overall_status' | 'due_date') => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortColumn(column)
+    setSortDirection(column === 'id' ? 'desc' : 'asc')
+  }
+
+  useEffect(() => {
+    setPage(1)
+  }, [listSearch, listStatusFilter, listTimingFilter, responsibleFilter, sortColumn, sortDirection])
 
   const handleCreateSubcontractor = async () => {
     const name = newSubcontractorName.trim()
@@ -349,6 +405,13 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
               onClick={exportSubmittalsCsv}
             >
               Export CSV
+            </PrimaryButton>
+            <PrimaryButton
+              type="button"
+              variant="secondary"
+              onClick={exportSubmittalsExcel}
+            >
+              Export Excel
             </PrimaryButton>
             <PrimaryButton
               type="button"
@@ -751,7 +814,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       </form>
       ) : null}
 
-      <div className="mt-6 grid gap-2 md:grid-cols-3">
+      <div className="mt-6 grid gap-2 md:grid-cols-4">
         <input
           value={listSearch}
           onChange={(event) => setListSearch(event.target.value)}
@@ -767,12 +830,34 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
           <option value="opened">Opened</option>
           <option value="closed">Closed</option>
         </select>
+        <select
+          value={listTimingFilter}
+          onChange={(event) => setListTimingFilter(event.target.value as TimingFilter)}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
+          <option value="all">All timing</option>
+          <option value="late">Late only</option>
+          <option value="this_week">Due this week</option>
+        </select>
+        <input
+          value={responsibleFilter}
+          onChange={(event) => setResponsibleFilter(event.target.value)}
+          placeholder="Filter by responsible or contractor"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
       </div>
       <div className="ui-scroll mt-3 overflow-x-auto">
         <table className="ui-table min-w-[1000px]">
-          <thead><tr className="bg-slate-100">{['ID', 'Project', 'Submittal #', 'Overall Status', 'Due Date', 'Actions'].map((h) => <th key={h} className="border px-3 py-2 text-left">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-slate-100">
+            <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('id')} className="font-semibold">ID</button></th>
+            <th className="border px-3 py-2 text-left">Project</th>
+            <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('submittal_number')} className="font-semibold">Submittal #</button></th>
+            <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('overall_status')} className="font-semibold">Overall Status</button></th>
+            <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('due_date')} className="font-semibold">Due Date</button></th>
+            <th className="border px-3 py-2 text-left">Actions</th>
+          </tr></thead>
           <tbody>
-            {filteredTableSubmittals.map((item) => (
+            {pagedSubmittals.map((item) => (
               <tr key={item.id}>
                 <td className="border px-3 py-2">{item.id}</td>
                 <td className="border px-3 py-2">{item.project_id ? (projectNameById[item.project_id] ?? 'Unknown Project') : ''}</td>
@@ -822,7 +907,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
                 </td>
               </tr>
             ))}
-            {filteredTableSubmittals.length === 0 ? (
+            {sortedSubmittals.length === 0 ? (
               <tr>
                 <td colSpan={6} className="border px-3 py-8">
                   <EmptyState
@@ -836,6 +921,13 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             ) : null}
           </tbody>
         </table>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+        <span>Page {page} of {totalPages}</span>
+        <div className="flex gap-2">
+          <button type="button" disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))} className="rounded border px-3 py-1 disabled:opacity-50">Previous</button>
+          <button type="button" disabled={page >= totalPages} onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} className="rounded border px-3 py-1 disabled:opacity-50">Next</button>
+        </div>
       </div>
 
       {showSubcontractorModal ? (

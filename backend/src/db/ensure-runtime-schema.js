@@ -1,6 +1,11 @@
 import pool from "./pool.js";
 
 const ensureRuntimeSchemaSql = `
+CREATE TABLE IF NOT EXISTS contractors (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE
+);
+
 ALTER TABLE product_list
 ADD COLUMN IF NOT EXISTS image_url TEXT;
 
@@ -14,4 +19,3 @@ ADD COLUMN IF NOT EXISTS lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'opened';
 export const ensureRuntimeSchema = async () => {
   await pool.query(ensureRuntimeSchemaSql);
 };
-

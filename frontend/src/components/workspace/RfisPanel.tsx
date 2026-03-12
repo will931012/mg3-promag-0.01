@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { EOR_TYPES } from '../../app/eorTypes'
 import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
+import { downloadCsv, downloadExcelHtml, sortRecords } from '../../app/tableUtils'
 import { createSubcontractor, createRfi, deleteRfi, fetchSubcontractors, updateRfi } from '../../services/workspaceService'
 import type { ProjectRecord, SubcontractorRecord, RfiRecord } from '../../types/workspace'
 import EmptyState from '../common/EmptyState'
@@ -24,6 +26,8 @@ type RfiFormErrors = {
   response_due?: string
   date_answered?: string
 }
+
+type TimingFilter = 'all' | 'late' | 'this_week'
 
 const STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as const
 const MULTI_VALUE_SEPARATOR = ' | '
@@ -74,12 +78,6 @@ function removeNote(current: string | null, note: string): string {
   return splitNotes(current).filter((item) => item !== note).join(NOTES_SEPARATOR)
 }
 
-function escapeCsv(value: unknown): string {
-  const normalized = String(value ?? '')
-  if (!/[",\n]/.test(normalized)) return normalized
-  return `"${normalized.replace(/"/g, '""')}"`
-}
-
 const emptyForm: Omit<RfiRecord, 'id'> = {
   project_id: '',
   rfi_number: '',
@@ -101,6 +99,7 @@ const emptyForm: Omit<RfiRecord, 'id'> = {
 }
 
 export default function RfisPanel({ token, projects, rfis, setMessage, refreshWorkspace }: RfisPanelProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [form, setForm] = useState<Omit<RfiRecord, 'id'>>(emptyForm)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -116,6 +115,11 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   const [descriptionInput, setDescriptionInput] = useState('')
   const [listSearch, setListSearch] = useState('')
   const [listStatusFilter, setListStatusFilter] = useState<'all' | 'opened' | 'closed'>('all')
+  const [listTimingFilter, setListTimingFilter] = useState<TimingFilter>('all')
+  const [responsibleFilter, setResponsibleFilter] = useState('')
+  const [sortColumn, setSortColumn] = useState<'id' | 'rfi_number' | 'status' | 'response_due'>('id')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [page, setPage] = useState(1)
   const projectNameById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.project_id, p.project_name])),
     [projects]
@@ -158,6 +162,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   }, [sentToSubcontractorInput, sortedSubcontractors])
   const filteredTableRfis = useMemo(() => {
     const query = listSearch.trim().toLowerCase()
+    const responsibleQuery = responsibleFilter.trim().toLowerCase()
     return rfis.filter((item) => {
       const lifecycle = String(item.lifecycle_status || '').toLowerCase()
       const statusPass =
@@ -165,9 +170,40 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
       const searchPass = query.length === 0
         ? true
         : `${item.rfi_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query)
-      return statusPass && searchPass
+      const responsiblePass = responsibleQuery.length === 0
+        ? true
+        : `${item.responsible || ''} ${item.from_contractor || ''}`.toLowerCase().includes(responsibleQuery)
+      const timingPass =
+        listTimingFilter === 'all'
+          ? true
+          : listTimingFilter === 'late'
+            ? Boolean(item.response_due && item.response_due < todayIsoDate() && lifecycle !== 'closed')
+            : Boolean(item.response_due && item.response_due >= todayIsoDate() && item.response_due <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10))
+      return statusPass && searchPass && responsiblePass && timingPass
     })
-  }, [rfis, listSearch, listStatusFilter])
+  }, [rfis, listSearch, listStatusFilter, responsibleFilter, listTimingFilter])
+
+  useEffect(() => {
+    setListSearch(searchParams.get('search') ?? '')
+    const status = searchParams.get('status')
+    setListStatusFilter(status === 'opened' || status === 'closed' ? status : 'all')
+    const timing = searchParams.get('timing')
+    setListTimingFilter(timing === 'late' || timing === 'this_week' ? timing : 'all')
+    setResponsibleFilter(searchParams.get('responsible') ?? '')
+  }, [searchParams])
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    if (listSearch.trim()) next.set('search', listSearch)
+    else next.delete('search')
+    if (listStatusFilter !== 'all') next.set('status', listStatusFilter)
+    else next.delete('status')
+    if (listTimingFilter !== 'all') next.set('timing', listTimingFilter)
+    else next.delete('timing')
+    if (responsibleFilter.trim()) next.set('responsible', responsibleFilter)
+    else next.delete('responsible')
+    setSearchParams(next, { replace: true })
+  }, [listSearch, listStatusFilter, listTimingFilter, responsibleFilter, searchParams, setSearchParams])
   const formErrors = useMemo<RfiFormErrors>(() => {
     const errors: RfiFormErrors = {}
     if (!form.project_id?.trim()) errors.project_id = 'Project is required.'
@@ -185,7 +221,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
 
   const exportRfisCsv = () => {
     const headers = ['ID', 'Project ID', 'Project Name', 'RFI Number', 'Subject', 'Status', 'Response Due', 'Date Answered', 'Responsible']
-    const rows = filteredTableRfis.map((item) => [
+    const rows = sortedRfis.map((item) => [
       item.id,
       item.project_id ?? '',
       item.project_id ? (projectNameById[item.project_id] ?? '') : '',
@@ -196,15 +232,32 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
       item.date_answered ?? '',
       item.responsible ?? '',
     ])
-    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'rfis-export.csv'
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadCsv('rfis-export.csv', headers, rows)
   }
+  const exportRfisExcel = () => {
+    const headers = ['ID', 'Project ID', 'Project Name', 'RFI Number', 'Subject', 'Status', 'Response Due', 'Date Answered', 'Responsible']
+    const rows = sortedRfis.map((item) => [item.id, item.project_id ?? '', item.project_id ? (projectNameById[item.project_id] ?? '') : '', item.rfi_number ?? '', item.subject ?? '', item.status ?? '', item.response_due ?? '', item.date_answered ?? '', item.responsible ?? ''])
+    downloadExcelHtml('rfis-export.xls', headers, rows)
+  }
+  const sortedRfis = useMemo(() => {
+    const selector = (item: RfiRecord) => item[sortColumn]
+    return sortRecords(filteredTableRfis, selector, sortDirection)
+  }, [filteredTableRfis, sortColumn, sortDirection])
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(sortedRfis.length / pageSize))
+  const pagedRfis = useMemo(() => sortedRfis.slice((page - 1) * pageSize, page * pageSize), [sortedRfis, page])
+  const handleSort = (column: 'id' | 'rfi_number' | 'status' | 'response_due') => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortColumn(column)
+    setSortDirection(column === 'id' ? 'desc' : 'asc')
+  }
+
+  useEffect(() => {
+    setPage(1)
+  }, [listSearch, listStatusFilter, listTimingFilter, responsibleFilter, sortColumn, sortDirection])
 
   useEffect(() => {
     let mounted = true
@@ -283,6 +336,13 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
               onClick={exportRfisCsv}
             >
               Export CSV
+            </PrimaryButton>
+            <PrimaryButton
+              type="button"
+              variant="secondary"
+              onClick={exportRfisExcel}
+            >
+              Export Excel
             </PrimaryButton>
             <PrimaryButton
               type="button"
@@ -615,7 +675,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
       </form>
       ) : null}
 
-      <div className="mt-6 grid gap-2 md:grid-cols-3">
+      <div className="mt-6 grid gap-2 md:grid-cols-4">
         <input
           value={listSearch}
           onChange={(event) => setListSearch(event.target.value)}
@@ -631,12 +691,34 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
           <option value="opened">Opened</option>
           <option value="closed">Closed</option>
         </select>
+        <select
+          value={listTimingFilter}
+          onChange={(event) => setListTimingFilter(event.target.value as TimingFilter)}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
+          <option value="all">All timing</option>
+          <option value="late">Overdue only</option>
+          <option value="this_week">Due this week</option>
+        </select>
+        <input
+          value={responsibleFilter}
+          onChange={(event) => setResponsibleFilter(event.target.value)}
+          placeholder="Filter by responsible or contractor"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
       </div>
       <div className="ui-scroll mt-3 overflow-x-auto">
         <table className="ui-table min-w-[900px]">
-          <thead><tr className="bg-slate-100">{['ID', 'Project', 'RFI #', 'Subject', 'Status', 'Actions'].map((h) => <th key={h} className="border px-3 py-2 text-left">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-slate-100">
+            <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('id')} className="font-semibold">ID</button></th>
+            <th className="border px-3 py-2 text-left">Project</th>
+            <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('rfi_number')} className="font-semibold">RFI #</button></th>
+            <th className="border px-3 py-2 text-left">Subject</th>
+            <th className="border px-3 py-2 text-left"><button type="button" onClick={() => handleSort('status')} className="font-semibold">Status</button></th>
+            <th className="border px-3 py-2 text-left">Actions</th>
+          </tr></thead>
           <tbody>
-            {filteredTableRfis.map((item) => (
+            {pagedRfis.map((item) => (
               <tr key={item.id}>
                 <td className="border px-3 py-2">{item.id}</td>
                 <td className="border px-3 py-2">{item.project_id ? (projectNameById[item.project_id] ?? 'Unknown Project') : ''}</td>
@@ -680,7 +762,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
                 </td>
               </tr>
             ))}
-            {filteredTableRfis.length === 0 ? (
+            {sortedRfis.length === 0 ? (
               <tr>
                 <td colSpan={6} className="border px-3 py-8">
                   <EmptyState
@@ -694,6 +776,13 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
             ) : null}
           </tbody>
         </table>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+        <span>Page {page} of {totalPages}</span>
+        <div className="flex gap-2">
+          <button type="button" disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))} className="rounded border px-3 py-1 disabled:opacity-50">Previous</button>
+          <button type="button" disabled={page >= totalPages} onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} className="rounded border px-3 py-1 disabled:opacity-50">Next</button>
+        </div>
       </div>
 
       {showSubcontractorModal ? (

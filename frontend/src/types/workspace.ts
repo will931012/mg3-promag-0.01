@@ -38,6 +38,11 @@ export type SubcontractorRecord = {
   name: string
 }
 
+export type ContractorRecord = {
+  id: number
+  name: string
+}
+
 export type SubmittalRecord = {
   id: number
   project_id: string | null

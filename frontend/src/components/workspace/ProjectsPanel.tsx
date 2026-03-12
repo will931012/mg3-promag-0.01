@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { EOR_TYPES } from '../../app/eorTypes'
 import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
+import { downloadCsv, downloadExcelHtml, sortRecords } from '../../app/tableUtils'
 import Breadcrumbs from '../common/Breadcrumbs'
 import EmptyState from '../common/EmptyState'
 import PrimaryButton from '../common/PrimaryButton'
@@ -209,6 +210,9 @@ export default function ProjectsPanel({
   const [detailTimingFilter, setDetailTimingFilter] = useState<'all' | 'late' | 'this_week'>('all')
   const [isSavingSubmittalDetail, setIsSavingSubmittalDetail] = useState(false)
   const [isSavingRfiDetail, setIsSavingRfiDetail] = useState(false)
+  const [projectSort, setProjectSort] = useState<'project_name' | 'developer' | 'status' | 'priority'>('project_name')
+  const [projectSortDirection, setProjectSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [projectPage, setProjectPage] = useState(1)
 
   const loadAors = async () => {
     const next = await fetchAors(token)
@@ -305,6 +309,16 @@ export default function ProjectsPanel({
   }, [searchedDetailItems])
   const submittalDetailOrder = useMemo(() => projectSubmittals.map((item) => item.id), [projectSubmittals])
   const rfiDetailOrder = useMemo(() => projectRfis.map((item) => item.id), [projectRfis])
+  const sortedProjects = useMemo(() => {
+    const selector = (item: ProjectRecord) => item[projectSort]
+    return sortRecords(projects, selector, projectSortDirection)
+  }, [projects, projectSort, projectSortDirection])
+  const projectPageSize = 10
+  const pagedProjects = useMemo(
+    () => sortedProjects.slice((projectPage - 1) * projectPageSize, projectPage * projectPageSize),
+    [sortedProjects, projectPage]
+  )
+  const totalProjectPages = Math.max(1, Math.ceil(sortedProjects.length / projectPageSize))
 
   useEffect(() => {
     setSelectedProjectId(routeProjectId)
@@ -522,6 +536,39 @@ export default function ProjectsPanel({
     setShowForm(false)
     await refreshWorkspace(token)
   }
+
+  const exportProjectsCsv = () => {
+    const headers = ['Project ID', 'Project Name', 'Address', 'Developer', 'AOR', 'EOR', 'End Date', 'Status', 'Priority']
+    const rows = sortedProjects.map((item) => [
+      item.project_id,
+      item.project_name,
+      item.address ?? '',
+      item.developer ?? '',
+      item.aor ?? '',
+      item.eor ?? '',
+      item.end_date ?? '',
+      item.status ?? '',
+      item.priority ?? '',
+    ])
+    downloadCsv('projects-export.csv', headers, rows)
+  }
+  const exportProjectsExcel = () => {
+    const headers = ['Project ID', 'Project Name', 'Address', 'Developer', 'AOR', 'EOR', 'End Date', 'Status', 'Priority']
+    const rows = sortedProjects.map((item) => [item.project_id, item.project_name, item.address ?? '', item.developer ?? '', item.aor ?? '', item.eor ?? '', item.end_date ?? '', item.status ?? '', item.priority ?? ''])
+    downloadExcelHtml('projects-export.xls', headers, rows)
+  }
+  const handleProjectSort = (column: 'project_name' | 'developer' | 'status' | 'priority') => {
+    if (projectSort === column) {
+      setProjectSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setProjectSort(column)
+    setProjectSortDirection('asc')
+  }
+
+  useEffect(() => {
+    setProjectPage(1)
+  }, [projectSort, projectSortDirection, projects.length])
 
   return (
     <section className="ui-panel slide-in">
@@ -1198,25 +1245,33 @@ export default function ProjectsPanel({
         title={editingProjectId ? 'Edit Project' : 'Projects'}
         subtitle="Manage project records, assign team roles, and open detail pages."
         actions={
-          <PrimaryButton
-            type="button"
-            onClick={() => {
-              if (showForm) {
+          <div className="flex flex-wrap gap-2">
+            <PrimaryButton type="button" variant="secondary" onClick={exportProjectsCsv}>
+              Export CSV
+            </PrimaryButton>
+            <PrimaryButton type="button" variant="secondary" onClick={exportProjectsExcel}>
+              Export Excel
+            </PrimaryButton>
+            <PrimaryButton
+              type="button"
+              onClick={() => {
+                if (showForm) {
+                  setEditingProjectId(null)
+                  setShowForm(false)
+                  return
+                }
                 setEditingProjectId(null)
-                setShowForm(false)
-                return
-              }
-              setEditingProjectId(null)
-              setForm(emptyProjectForm)
-              setSelectedEorType(defaultEorType)
-              setAorInput('')
-              setEorInput('')
-              setNoteInput('')
-              setShowForm(true)
-            }}
-          >
-            {showForm ? 'Hide Form' : 'Add Project'}
-          </PrimaryButton>
+                setForm(emptyProjectForm)
+                setSelectedEorType(defaultEorType)
+                setAorInput('')
+                setEorInput('')
+                setNoteInput('')
+                setShowForm(true)
+              }}
+            >
+              {showForm ? 'Hide Form' : 'Add Project'}
+            </PrimaryButton>
+          </div>
         }
       />
       {showForm ? (
@@ -1475,13 +1530,24 @@ export default function ProjectsPanel({
         <table className="ui-table min-w-[900px]">
           <thead>
             <tr className="bg-slate-100">
-              {['Project ID', 'Project Name', 'Developer', 'Status', 'Priority', 'Actions'].map((head) => (
-                <th key={head} className="border px-3 py-2 text-left">{head}</th>
-              ))}
+              <th className="border px-3 py-2 text-left">Project ID</th>
+              <th className="border px-3 py-2 text-left">
+                <button type="button" onClick={() => handleProjectSort('project_name')} className="font-semibold">Project Name</button>
+              </th>
+              <th className="border px-3 py-2 text-left">
+                <button type="button" onClick={() => handleProjectSort('developer')} className="font-semibold">Developer</button>
+              </th>
+              <th className="border px-3 py-2 text-left">
+                <button type="button" onClick={() => handleProjectSort('status')} className="font-semibold">Status</button>
+              </th>
+              <th className="border px-3 py-2 text-left">
+                <button type="button" onClick={() => handleProjectSort('priority')} className="font-semibold">Priority</button>
+              </th>
+              <th className="border px-3 py-2 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {projects.map((item) => (
+            {pagedProjects.map((item) => (
               <tr
                 key={item.project_id}
                 role="link"
@@ -1567,6 +1633,13 @@ export default function ProjectsPanel({
             ) : null}
           </tbody>
         </table>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+        <span>Page {projectPage} of {totalProjectPages}</span>
+        <div className="flex gap-2">
+          <button type="button" disabled={projectPage <= 1} onClick={() => setProjectPage((prev) => Math.max(1, prev - 1))} className="rounded border px-3 py-1 disabled:opacity-50">Previous</button>
+          <button type="button" disabled={projectPage >= totalProjectPages} onClick={() => setProjectPage((prev) => Math.min(totalProjectPages, prev + 1))} className="rounded border px-3 py-1 disabled:opacity-50">Next</button>
+        </div>
       </div>
 
       {showAorModal ? (

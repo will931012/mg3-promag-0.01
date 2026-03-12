@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 import DashboardPanel from '../components/workspace/DashboardPanel'
+import ContactsPanel from '../components/workspace/ContactsPanel'
 import ProjectsPanel from '../components/workspace/ProjectsPanel'
 import RfisPanel from '../components/workspace/RfisPanel'
 import SubmittalsPanel from '../components/workspace/SubmittalsPanel'
@@ -9,7 +10,7 @@ import UsersPanel from '../components/workspace/UsersPanel'
 import type { AuthUser } from '../types/auth'
 import type { DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
 
-type TabId = 'dashboard' | 'projects' | 'submittals' | 'rfis' | 'users'
+type TabId = 'dashboard' | 'projects' | 'submittals' | 'rfis' | 'contacts' | 'users'
 
 type WorkspacePageProps = {
   health: string
@@ -68,6 +69,7 @@ function parsePath(pathname: string): RouteState {
   if (clean === '/projects') return { tab: 'projects', projectId: null, submittalId: null, rfiId: null }
   if (clean === '/submittals') return { tab: 'submittals', projectId: null, submittalId: null, rfiId: null }
   if (clean === '/rfis') return { tab: 'rfis', projectId: null, submittalId: null, rfiId: null }
+  if (clean === '/contacts') return { tab: 'contacts', projectId: null, submittalId: null, rfiId: null }
   if (clean === '/users') return { tab: 'users', projectId: null, submittalId: null, rfiId: null }
   return { tab: 'dashboard', projectId: null, submittalId: null, rfiId: null }
 }
@@ -93,6 +95,7 @@ export default function WorkspacePage({
   const searchRef = useRef<HTMLDivElement | null>(null)
   const location = useLocation()
   const navigateTo = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
     if (location.pathname === '/') {
@@ -123,6 +126,10 @@ export default function WorkspacePage({
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [])
 
+  useEffect(() => {
+    setWorkspaceSearch(searchParams.get('q') ?? '')
+  }, [searchParams])
+
   const route = useMemo(() => parsePath(location.pathname), [location.pathname])
   const isErrorMessage = /fail|error|unable|invalid/i.test(message)
 
@@ -136,10 +143,17 @@ export default function WorkspacePage({
     ['projects', 'Projects'],
     ['submittals', 'Submittals'],
     ['rfis', 'RFIs'],
+    ['contacts', 'Contacts'],
     ['users', 'Users'],
   ]
   const menuToggleLabel = menuOpen ? 'Cerrar menu' : 'Abrir menu'
   const sidebarMarkers = [1, 2, 3, 4, 5, 6]
+  const updateGlobalSearchParam = (nextValue: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (nextValue.trim()) next.set('q', nextValue)
+    else next.delete('q')
+    setSearchParams(next, { replace: true })
+  }
   const searchResults = useMemo(() => {
     const query = workspaceSearch.trim().toLowerCase()
     if (!query) return []
@@ -274,6 +288,7 @@ export default function WorkspacePage({
                 onFocus={() => setShowSearchResults(true)}
                 onChange={(event) => {
                   setWorkspaceSearch(event.target.value)
+                  updateGlobalSearchParam(event.target.value)
                   setShowSearchResults(true)
                 }}
                 aria-label="Workspace search"
@@ -288,6 +303,7 @@ export default function WorkspacePage({
                       type="button"
                       onClick={() => {
                         setWorkspaceSearch('')
+                        updateGlobalSearchParam('')
                         setShowSearchResults(false)
                         navigate(item.path)
                       }}
@@ -347,6 +363,9 @@ export default function WorkspacePage({
           ) : null}
           {route.tab === 'rfis' ? (
             <RfisPanel token={token} projects={projects} rfis={rfis} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
+          ) : null}
+          {route.tab === 'contacts' ? (
+            <ContactsPanel token={token} setMessage={setMessage} />
           ) : null}
           {route.tab === 'users' ? <UsersPanel users={users} /> : null}
         </main>
