@@ -18,6 +18,13 @@ type RfisPanelProps = {
   refreshWorkspace: (token: string) => Promise<void>
 }
 
+type RfiFormErrors = {
+  project_id?: string
+  sent_to_date?: string
+  response_due?: string
+  date_answered?: string
+}
+
 const STATUS_OPTIONS = ['Approved', 'Under Revision', 'Not Approved'] as const
 const MULTI_VALUE_SEPARATOR = ' | '
 const NOTES_SEPARATOR = '\n\n'
@@ -65,6 +72,12 @@ function addNote(current: string | null, nextValue: string): string {
 
 function removeNote(current: string | null, note: string): string {
   return splitNotes(current).filter((item) => item !== note).join(NOTES_SEPARATOR)
+}
+
+function escapeCsv(value: unknown): string {
+  const normalized = String(value ?? '')
+  if (!/[",\n]/.test(normalized)) return normalized
+  return `"${normalized.replace(/"/g, '""')}"`
 }
 
 const emptyForm: Omit<RfiRecord, 'id'> = {
@@ -155,6 +168,43 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
       return statusPass && searchPass
     })
   }, [rfis, listSearch, listStatusFilter])
+  const formErrors = useMemo<RfiFormErrors>(() => {
+    const errors: RfiFormErrors = {}
+    if (!form.project_id?.trim()) errors.project_id = 'Project is required.'
+    if (form.sent_to_date && !form.sent_to_aor && !form.sent_to_eor && !form.sent_to_subcontractor) {
+      errors.sent_to_date = 'Sent to date requires at least one recipient.'
+    }
+    if (form.response_due && form.sent_to_date && form.response_due < form.sent_to_date) {
+      errors.response_due = 'Response due cannot be earlier than sent to date.'
+    }
+    if (form.status === 'Approved' && !form.date_answered) {
+      errors.date_answered = 'Approved RFIs require an answered date.'
+    }
+    return errors
+  }, [form])
+
+  const exportRfisCsv = () => {
+    const headers = ['ID', 'Project ID', 'Project Name', 'RFI Number', 'Subject', 'Status', 'Response Due', 'Date Answered', 'Responsible']
+    const rows = filteredTableRfis.map((item) => [
+      item.id,
+      item.project_id ?? '',
+      item.project_id ? (projectNameById[item.project_id] ?? '') : '',
+      item.rfi_number ?? '',
+      item.subject ?? '',
+      item.status ?? '',
+      item.response_due ?? '',
+      item.date_answered ?? '',
+      item.responsible ?? '',
+    ])
+    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'rfis-export.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(() => {
     let mounted = true
@@ -184,6 +234,9 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (Object.keys(formErrors).length > 0) {
+      return setMessage('Review the highlighted RFI fields before saving.')
+    }
     const payload = {
       project_id: toNullableString(form.project_id),
       rfi_number: toNullableString(form.rfi_number),
@@ -223,26 +276,35 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
         title={editingId ? 'Edit RFI' : 'RFIs'}
         subtitle="Keep request communication visible with clear open/closed status."
         actions={
-          <PrimaryButton
-            type="button"
-            onClick={() => {
-              if (showForm) {
+          <div className="flex flex-wrap gap-2">
+            <PrimaryButton
+              type="button"
+              variant="secondary"
+              onClick={exportRfisCsv}
+            >
+              Export CSV
+            </PrimaryButton>
+            <PrimaryButton
+              type="button"
+              onClick={() => {
+                if (showForm) {
+                  setEditingId(null)
+                  setShowForm(false)
+                  return
+                }
                 setEditingId(null)
-                setShowForm(false)
-                return
-              }
-              setEditingId(null)
-              setForm(emptyForm)
-              setProjectSearch('')
-              setSelectedProjectEorOption('')
-              setSentToSubcontractorInput('')
-              setDescriptionInput('')
-              setSelectedEorType('Civil EOR')
-              setShowForm(true)
-            }}
-          >
-            {showForm ? 'Hide Form' : 'Add RFI'}
-          </PrimaryButton>
+                setForm(emptyForm)
+                setProjectSearch('')
+                setSelectedProjectEorOption('')
+                setSentToSubcontractorInput('')
+                setDescriptionInput('')
+                setSelectedEorType('Civil EOR')
+                setShowForm(true)
+              }}
+            >
+              {showForm ? 'Hide Form' : 'Add RFI'}
+            </PrimaryButton>
+          </div>
         }
       />
       {showForm ? (
@@ -287,6 +349,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
             ) : null}
           </div>
           {form.project_id ? <p className="mt-1 text-xs text-slate-500">Selected project</p> : null}
+          {formErrors.project_id ? <p className="mt-1 text-xs text-rose-600">{formErrors.project_id}</p> : null}
         </label>
         <label className="text-sm">RFI #
           <input value={form.rfi_number ?? ''} onChange={(e) => setForm((p) => ({ ...p, rfi_number: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
@@ -504,9 +567,15 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
             onChange={(e) => setForm((p) => ({ ...p, sent_to_date: e.target.value }))}
             className="mt-1 w-full rounded border px-2 py-2"
           />
+          {formErrors.sent_to_date ? <p className="mt-1 text-xs text-rose-600">{formErrors.sent_to_date}</p> : null}
         </label>
         <label className="text-sm">Response Due
           <input type="date" value={form.response_due ?? ''} onChange={(e) => setForm((p) => ({ ...p, response_due: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
+          {formErrors.response_due ? <p className="mt-1 text-xs text-rose-600">{formErrors.response_due}</p> : null}
+        </label>
+        <label className="text-sm">Date Answered
+          <input type="date" value={form.date_answered ?? ''} onChange={(e) => setForm((p) => ({ ...p, date_answered: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
+          {formErrors.date_answered ? <p className="mt-1 text-xs text-rose-600">{formErrors.date_answered}</p> : null}
         </label>
         <div className={`lg:col-span-4 ${editingId ? 'sticky bottom-3 z-10 rounded-xl border border-sky-200 bg-sky-50/95 p-3 shadow-lg backdrop-blur' : ''}`}>
           {editingId ? (

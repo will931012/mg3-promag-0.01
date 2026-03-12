@@ -87,7 +87,10 @@ export default function WorkspacePage({
   refreshWorkspace,
 }: WorkspacePageProps) {
   const [menuOpen, setMenuOpen] = useState(true)
+  const [workspaceSearch, setWorkspaceSearch] = useState('')
+  const [showSearchResults, setShowSearchResults] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const searchRef = useRef<HTMLDivElement | null>(null)
   const location = useLocation()
   const navigateTo = useNavigate()
 
@@ -109,6 +112,17 @@ export default function WorkspacePage({
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [menuOpen])
 
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      if (!searchRef.current) return
+      if (!searchRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [])
+
   const route = useMemo(() => parsePath(location.pathname), [location.pathname])
   const isErrorMessage = /fail|error|unable|invalid/i.test(message)
 
@@ -126,6 +140,39 @@ export default function WorkspacePage({
   ]
   const menuToggleLabel = menuOpen ? 'Cerrar menu' : 'Abrir menu'
   const sidebarMarkers = [1, 2, 3, 4, 5, 6]
+  const searchResults = useMemo(() => {
+    const query = workspaceSearch.trim().toLowerCase()
+    if (!query) return []
+    return [
+      ...projects
+        .filter((project) => `${project.project_name} ${project.project_id} ${project.address || ''}`.toLowerCase().includes(query))
+        .map((project) => ({
+          id: `project-${project.project_id}`,
+          type: 'Project',
+          title: project.project_name,
+          subtitle: project.project_id,
+          path: `/projects/${encodeURIComponent(project.project_id)}`,
+        })),
+      ...submittals
+        .filter((item) => `${item.submittal_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query))
+        .map((item) => ({
+          id: `submittal-${item.id}`,
+          type: 'Submittal',
+          title: item.submittal_number || `Submittal ${item.id}`,
+          subtitle: item.subject || item.project_id || 'No subject',
+          path: item.project_id ? `/projects/${encodeURIComponent(item.project_id)}/submittals/${item.id}` : '/submittals',
+        })),
+      ...rfis
+        .filter((item) => `${item.rfi_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query))
+        .map((item) => ({
+          id: `rfi-${item.id}`,
+          type: 'RFI',
+          title: item.rfi_number || `RFI ${item.id}`,
+          subtitle: item.subject || item.project_id || 'No subject',
+          path: item.project_id ? `/projects/${encodeURIComponent(item.project_id)}/rfis/${item.id}` : '/rfis',
+        })),
+    ].slice(0, 8)
+  }, [workspaceSearch, projects, submittals, rfis])
 
   return (
     <div className="neo-dashboard min-h-screen bg-[#151823] px-3 py-5 md:px-8 md:py-6">
@@ -221,14 +268,43 @@ export default function WorkspacePage({
             >
               Abrir menu
             </button>
-            <label className="min-w-[220px] flex-1">
+            <div ref={searchRef} className="relative min-w-[220px] flex-1">
               <input
-                readOnly
+                value={workspaceSearch}
+                onFocus={() => setShowSearchResults(true)}
+                onChange={(event) => {
+                  setWorkspaceSearch(event.target.value)
+                  setShowSearchResults(true)
+                }}
                 aria-label="Workspace search"
                 placeholder="Search projects, submittals, RFIs..."
                 className="w-full rounded-lg border border-white/10 bg-[#111528] px-3 py-2 text-sm text-[#c8d2f2] placeholder:text-[#7f89ae]"
               />
-            </label>
+              {showSearchResults && workspaceSearch.trim() ? (
+                <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-white/10 bg-[#111528] p-2 shadow-2xl">
+                  {searchResults.length ? searchResults.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setWorkspaceSearch('')
+                        setShowSearchResults(false)
+                        navigate(item.path)
+                      }}
+                      className="flex w-full items-start justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/5"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-[#eef3ff]">{item.title}</p>
+                        <p className="text-xs text-[#8f98bf]">{item.subtitle}</p>
+                      </div>
+                      <span className="rounded-full bg-[#1b2035] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-[#8ba6ff]">{item.type}</span>
+                    </button>
+                  )) : (
+                    <div className="px-3 py-2 text-sm text-[#8f98bf]">No results found.</div>
+                  )}
+                </div>
+              ) : null}
+            </div>
             <span className="rounded-full bg-[#101426] px-3 py-1 text-xs text-[#9da7cd]">Today</span>
             <span className="rounded-full bg-[#101426] px-3 py-1 text-xs text-[#9da7cd]">{user.username}</span>
           </header>

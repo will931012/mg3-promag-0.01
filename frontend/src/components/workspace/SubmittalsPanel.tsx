@@ -18,6 +18,12 @@ type SubmittalsPanelProps = {
   refreshWorkspace: (token: string) => Promise<void>
 }
 
+type SubmittalFormErrors = {
+  project_id?: string
+  sent_to_date?: string
+  due_date?: string
+}
+
 const DIVISION_CSI_GROUPS = [
   {
     label: 'Procurement & Contracting Requirements',
@@ -113,6 +119,12 @@ function addNote(current: string | null, nextValue: string): string {
 
 function removeNote(current: string | null, note: string): string {
   return splitNotes(current).filter((item) => item !== note).join(NOTES_SEPARATOR)
+}
+
+function escapeCsv(value: unknown): string {
+  const normalized = String(value ?? '')
+  if (!/[",\n]/.test(normalized)) return normalized
+  return `"${normalized.replace(/"/g, '""')}"`
 }
 
 const emptyForm: Omit<SubmittalRecord, 'id'> = {
@@ -225,6 +237,40 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
       return statusPass && searchPass
     })
   }, [submittals, listSearch, listStatusFilter])
+  const formErrors = useMemo<SubmittalFormErrors>(() => {
+    const errors: SubmittalFormErrors = {}
+    if (!form.project_id?.trim()) errors.project_id = 'Project is required.'
+    if (form.sent_to_date && !form.sent_to_aor && !form.sent_to_eor && !form.sent_to_subcontractor) {
+      errors.sent_to_date = 'Sent to date requires at least one recipient.'
+    }
+    if (form.due_date && form.sent_to_date && form.due_date < form.sent_to_date) {
+      errors.due_date = 'Due date cannot be earlier than sent to date.'
+    }
+    return errors
+  }, [form])
+
+  const exportSubmittalsCsv = () => {
+    const headers = ['ID', 'Project ID', 'Project Name', 'Submittal Number', 'Subject', 'Overall Status', 'Approval Status', 'Due Date', 'Responsible']
+    const rows = filteredTableSubmittals.map((item) => [
+      item.id,
+      item.project_id ?? '',
+      item.project_id ? (projectNameById[item.project_id] ?? '') : '',
+      item.submittal_number ?? '',
+      item.subject ?? '',
+      item.overall_status ?? '',
+      item.approval_status ?? '',
+      item.due_date ?? '',
+      item.responsible ?? '',
+    ])
+    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'submittals-export.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleCreateSubcontractor = async () => {
     const name = newSubcontractorName.trim()
@@ -243,7 +289,9 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!form.project_id) return setMessage('Select a project first.')
+    if (Object.keys(formErrors).length > 0) {
+      return setMessage('Review the highlighted submittal fields before saving.')
+    }
 
     const payload = {
       project_id: toNullableString(form.project_id),
@@ -294,27 +342,36 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
         title={editingId ? 'Edit Submittal' : 'Submittals'}
         subtitle="Track open/closed progress and due dates with searchable lists."
         actions={
-          <PrimaryButton
-            type="button"
-            onClick={() => {
-              if (showForm) {
+          <div className="flex flex-wrap gap-2">
+            <PrimaryButton
+              type="button"
+              variant="secondary"
+              onClick={exportSubmittalsCsv}
+            >
+              Export CSV
+            </PrimaryButton>
+            <PrimaryButton
+              type="button"
+              onClick={() => {
+                if (showForm) {
+                  setEditingId(null)
+                  setShowForm(false)
+                  return
+                }
                 setEditingId(null)
-                setShowForm(false)
-                return
-              }
-              setEditingId(null)
-              setForm(emptyForm)
-              setProjectSearch('')
-              setSelectedProjectEorOption('')
-              setSentToSubcontractorInput('')
-              setApproverInput('')
-              setNoteInput('')
-              setSelectedEorType('Civil EOR')
-              setShowForm(true)
-            }}
-          >
-            {showForm ? 'Hide Form' : 'Add Submittal'}
-          </PrimaryButton>
+                setForm(emptyForm)
+                setProjectSearch('')
+                setSelectedProjectEorOption('')
+                setSentToSubcontractorInput('')
+                setApproverInput('')
+                setNoteInput('')
+                setSelectedEorType('Civil EOR')
+                setShowForm(true)
+              }}
+            >
+              {showForm ? 'Hide Form' : 'Add Submittal'}
+            </PrimaryButton>
+          </div>
         }
       />
       {showForm ? (
@@ -359,6 +416,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             ) : null}
           </div>
           {form.project_id ? <p className="mt-1 text-xs text-slate-500">Selected project</p> : null}
+          {formErrors.project_id ? <p className="mt-1 text-xs text-rose-600">{formErrors.project_id}</p> : null}
         </label>
         <label className="text-sm">Submittal #
           <input value={form.submittal_number ?? ''} onChange={(e) => setForm((p) => ({ ...p, submittal_number: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
@@ -572,6 +630,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
             onChange={(e) => setForm((p) => ({ ...p, sent_to_date: e.target.value }))}
             className="mt-1 w-full rounded border px-2 py-2"
           />
+          {formErrors.sent_to_date ? <p className="mt-1 text-xs text-rose-600">{formErrors.sent_to_date}</p> : null}
         </label>
         <div className="text-sm">
           <label className="text-sm">Approvers</label>
@@ -615,6 +674,7 @@ export default function SubmittalsPanel({ token, projects, submittals, setMessag
         </div>
         <label className="text-sm">Due Date
           <input type="date" value={form.due_date ?? ''} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))} className="mt-1 w-full rounded border px-2 py-2" />
+          {formErrors.due_date ? <p className="mt-1 text-xs text-rose-600">{formErrors.due_date}</p> : null}
         </label>
         <div className="text-sm lg:col-span-2">
           <label className="text-sm">Notes</label>
