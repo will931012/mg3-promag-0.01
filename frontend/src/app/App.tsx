@@ -8,12 +8,13 @@ import { getCurrentUser, getHealth, login, logout } from '../services/authServic
 import {
   fetchProjects,
   fetchRfis,
-  fetchSubmittals,
   fetchSummary,
   fetchUsers,
 } from '../services/workspaceService'
+import { emptyRegisterActivity, fetchRegisterActivity } from '../services/registerService'
 import type { AuthUser } from '../types/auth'
-import type { DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
+import type { RegisterActivity } from '../types/register'
+import type { DashboardSummary, ProjectRecord, RfiRecord } from '../types/workspace'
 
 const emptySummary: DashboardSummary = {
   active_projects: 0,
@@ -28,7 +29,7 @@ export default function App() {
   const [health, setHealth] = useState('checking...')
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary)
   const [projects, setProjects] = useState<ProjectRecord[]>([])
-  const [submittals, setSubmittals] = useState<SubmittalRecord[]>([])
+  const [registerActivity, setRegisterActivity] = useState<RegisterActivity>(emptyRegisterActivity)
   const [rfis, setRfis] = useState<RfiRecord[]>([])
   const [users, setUsers] = useState<AuthUser[]>([])
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -40,16 +41,16 @@ export default function App() {
   const [message, setMessage] = useState('')
 
   const refreshWorkspace = async (authToken: string) => {
-    const [nextSummary, nextProjects, nextSubmittals, nextRfis, nextUsers] = await Promise.all([
+    const [nextSummary, nextProjects, nextRegisterActivity, nextRfis, nextUsers] = await Promise.all([
       fetchSummary(authToken),
       fetchProjects(authToken),
-      fetchSubmittals(authToken),
+      fetchRegisterActivity(authToken),
       fetchRfis(authToken),
       fetchUsers(authToken),
     ])
     setSummary(nextSummary)
     setProjects(nextProjects)
-    setSubmittals(nextSubmittals)
+    setRegisterActivity(nextRegisterActivity)
     setRfis(nextRfis)
     setUsers(nextUsers)
   }
@@ -123,7 +124,7 @@ export default function App() {
     setToken(null)
     setUser(null)
     setProjects([])
-    setSubmittals([])
+    setRegisterActivity(emptyRegisterActivity)
     setRfis([])
     setUsers([])
     setSummary(emptySummary)
@@ -155,7 +156,7 @@ export default function App() {
       token={token}
       summary={summary}
       projects={projects}
-      submittals={submittals}
+      registerActivity={registerActivity}
       rfis={rfis}
       users={users}
       message={message}

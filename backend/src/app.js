@@ -11,7 +11,7 @@ import projectsRouter from "./routes/projects.routes.js";
 import contractorsRouter from "./routes/contractors.routes.js";
 import subcontractorsRouter from "./routes/subcontractors.routes.js";
 import rfisRouter from "./routes/rfis.routes.js";
-import submittalsRouter from "./routes/submittals.routes.js";
+import registerRouter from "./routes/register.routes.js";
 
 const app = express();
 
@@ -71,7 +71,7 @@ app.use("/api/aors", authRequired, aorsRouter);
 app.use("/api/eors", authRequired, eorsRouter);
 app.use("/api/contractors", authRequired, contractorsRouter);
 app.use("/api/subcontractors", authRequired, subcontractorsRouter);
-app.use("/api/submittals", authRequired, submittalsRouter);
+app.use("/api/register", authRequired, registerRouter);
 app.use("/api/rfis", authRequired, rfisRouter);
 
 export default app;

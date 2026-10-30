@@ -433,7 +433,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
               className="w-full rounded border px-2 py-2"
             />
             {showProjectSuggestions ? (
-              <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-md">
+              <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded border border-slate-200 bg-surface shadow-md">
                 {projectSearch.trim().length < 1 ? null : filteredProjects.length > 0 ? (
                   filteredProjects.map((project) => (
                     <button
@@ -609,7 +609,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
                 className="w-full rounded border px-2 py-2"
               />
               {showSubcontractorSuggestions ? (
-                <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-md">
+                <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-slate-200 bg-surface shadow-md">
                   {sentToSubcontractorInput.trim().length < 1 ? null : filteredSubcontractors.length > 0 ? (
                     filteredSubcontractors.map((item) => (
                       <button
@@ -852,7 +852,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
 
       {showSubcontractorModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">Add Subcontractor</h3>
             <label className="mt-3 block text-sm text-slate-700">
               Subcontractor Name

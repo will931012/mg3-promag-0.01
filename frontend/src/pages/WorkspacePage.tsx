@@ -1,16 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+
+import { useRecentProjects } from '../app/recentProjects'
+import { useTheme } from '../app/theme'
+import type { SearchResult } from '../components/layout/GlobalSearch'
+import Sidebar from '../components/layout/Sidebar'
+import type { NavGroup } from '../components/layout/Sidebar'
+import TopBar from '../components/layout/TopBar'
 
 import DashboardPanel from '../components/workspace/DashboardPanel'
 import ContactsPanel from '../components/workspace/ContactsPanel'
+import MasterListPanel from '../components/workspace/MasterListPanel'
 import ProjectsPanel from '../components/workspace/ProjectsPanel'
 import RfisPanel from '../components/workspace/RfisPanel'
 import SubmittalsPanel from '../components/workspace/SubmittalsPanel'
 import UsersPanel from '../components/workspace/UsersPanel'
 import type { AuthUser } from '../types/auth'
-import type { DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
+import type { RegisterActivity } from '../types/register'
+import type { DashboardSummary, ProjectRecord, RfiRecord } from '../types/workspace'
 
-type TabId = 'dashboard' | 'projects' | 'submittals' | 'rfis' | 'contacts' | 'users'
+type TabId = 'dashboard' | 'projects' | 'submittals' | 'rfis' | 'contacts' | 'users' | 'master'
 
 type WorkspacePageProps = {
   health: string
@@ -18,7 +27,7 @@ type WorkspacePageProps = {
   token: string
   summary: DashboardSummary
   projects: ProjectRecord[]
-  submittals: SubmittalRecord[]
+  registerActivity: RegisterActivity
   rfis: RfiRecord[]
   users: AuthUser[]
   message: string
@@ -34,8 +43,20 @@ type RouteState = {
   rfiId: number | null
 }
 
+const emptyRoute = { projectId: null, submittalId: null, rfiId: null }
+
 function parsePath(pathname: string): RouteState {
   const clean = pathname === '/' ? '/dashboard' : pathname
+  // Register: /submittals/:projectId and /submittals/:projectId/items/:itemId (submittalId is the register item id)
+  const registerMatch = clean.match(/^\/submittals\/([^/]+)(?:\/items\/(\d+))?$/)
+  if (registerMatch) {
+    return {
+      tab: 'submittals',
+      projectId: decodeURIComponent(registerMatch[1]),
+      submittalId: registerMatch[2] ? Number(registerMatch[2]) : null,
+      rfiId: null,
+    }
+  }
   const submittalMatch = clean.match(/^\/projects\/([^/]+)\/submittals\/(\d+)$/)
   if (submittalMatch) {
     return {
@@ -71,7 +92,28 @@ function parsePath(pathname: string): RouteState {
   if (clean === '/rfis') return { tab: 'rfis', projectId: null, submittalId: null, rfiId: null }
   if (clean === '/contacts') return { tab: 'contacts', projectId: null, submittalId: null, rfiId: null }
   if (clean === '/users') return { tab: 'users', projectId: null, submittalId: null, rfiId: null }
+  if (clean === '/master-list') return { tab: 'master', ...emptyRoute }
   return { tab: 'dashboard', projectId: null, submittalId: null, rfiId: null }
+}
+
+const TAB_TITLES: Record<TabId, string> = {
+  dashboard: 'Dashboard',
+  projects: 'Projects',
+  submittals: 'Submittals',
+  rfis: 'RFIs',
+  contacts: 'Contacts',
+  users: 'Users',
+  master: 'Master List',
+}
+
+const SIDEBAR_COLLAPSED_KEY = 'promag_sidebar_collapsed'
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 export default function WorkspacePage({
@@ -80,7 +122,7 @@ export default function WorkspacePage({
   token,
   summary,
   projects,
-  submittals,
+  registerActivity,
   rfis,
   users,
   message,
@@ -88,14 +130,12 @@ export default function WorkspacePage({
   onLogout,
   refreshWorkspace,
 }: WorkspacePageProps) {
-  const [menuOpen, setMenuOpen] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
   const [workspaceSearch, setWorkspaceSearch] = useState('')
-  const [showSearchResults, setShowSearchResults] = useState(false)
-  const menuRef = useRef<HTMLDivElement | null>(null)
-  const searchRef = useRef<HTMLDivElement | null>(null)
   const location = useLocation()
   const navigateTo = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { theme, toggleTheme } = useTheme()
 
   useEffect(() => {
     if (location.pathname === '/') {
@@ -103,58 +143,67 @@ export default function WorkspacePage({
     }
   }, [location.pathname, navigateTo])
 
-  useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
-      if (window.innerWidth >= 768 || !menuOpen) return
-      if (!menuRef.current) return
-      if (!menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    return () => document.removeEventListener('mousedown', onPointerDown)
-  }, [menuOpen])
-
-  useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
-      if (!searchRef.current) return
-      if (!searchRef.current.contains(event.target as Node)) {
-        setShowSearchResults(false)
-      }
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    return () => document.removeEventListener('mousedown', onPointerDown)
-  }, [])
-
-  useEffect(() => {
-    setWorkspaceSearch(searchParams.get('q') ?? '')
-  }, [searchParams])
-
   const route = useMemo(() => parsePath(location.pathname), [location.pathname])
   const isErrorMessage = /fail|error|unable|invalid/i.test(message)
+  const openProject = route.projectId ? projects.find((project) => project.project_id === route.projectId) ?? null : null
+  const recentProjectIds = useRecentProjects(openProject?.project_id ?? null)
+  const recentProjects = useMemo(
+    () =>
+      recentProjectIds
+        .map((id) => projects.find((project) => project.project_id === id))
+        .filter((project): project is ProjectRecord => Boolean(project))
+        .slice(0, 5)
+        .map((project) => ({ id: project.project_id, name: project.project_name })),
+    [recentProjectIds, projects]
+  )
+
+  const pageTitle = TAB_TITLES[route.tab]
+  useEffect(() => {
+    document.title = `${openProject ? `${openProject.project_name} · ` : ''}${pageTitle} | ProMag`
+  }, [pageTitle, openProject])
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
 
   const navigate = (nextPath: string) => {
     if (location.pathname === nextPath) return
     navigateTo(nextPath)
   }
 
-  const navItems: Array<[TabId, string]> = [
-    ['dashboard', 'Dashboard'],
-    ['projects', 'Projects'],
-    ['submittals', 'Submittals'],
-    ['rfis', 'RFIs'],
-    ['contacts', 'Contacts'],
-    ['users', 'Users'],
-  ]
-  const menuToggleLabel = menuOpen ? 'Cerrar menu' : 'Abrir menu'
-  const sidebarMarkers = [1, 2, 3, 4, 5, 6]
-  const updateGlobalSearchParam = (nextValue: string) => {
-    const next = new URLSearchParams(searchParams)
-    if (nextValue.trim()) next.set('q', nextValue)
-    else next.delete('q')
-    setSearchParams(next, { replace: true })
+  const toggleSidebar = () => {
+    setSidebarCollapsed((collapsed) => {
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '0' : '1')
+      } catch {
+        // Only a preference; ignore storage errors.
+      }
+      return !collapsed
+    })
   }
-  const searchResults = useMemo(() => {
+
+  const navGroups: NavGroup[] = [
+    { label: 'Overview', items: [{ id: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: 'dashboard' }] },
+    {
+      label: 'Work',
+      items: [
+        { id: 'projects', label: 'Projects', path: '/projects', icon: 'projects' },
+        { id: 'submittals', label: 'Submittals', path: '/submittals', icon: 'submittals', badge: registerActivity.alerts, badgeLabel: 'alerts' },
+        { id: 'rfis', label: 'RFIs', path: '/rfis', icon: 'rfis', badge: summary.rfis_overdue_open, badgeLabel: 'overdue' },
+      ],
+    },
+    {
+      label: 'Directory',
+      items: [
+        { id: 'contacts', label: 'Contacts', path: '/contacts', icon: 'contacts' },
+        { id: 'users', label: 'Users', path: '/users', icon: 'users' },
+      ],
+    },
+    ...(user.is_admin ? [{ label: 'Admin', items: [{ id: 'master', label: 'Master List', path: '/master-list', icon: 'master' as const }] }] : []),
+  ]
+  const refreshRegisterCounts = () => void refreshWorkspace(token)
+
+  const searchResults = useMemo<SearchResult[]>(() => {
     const query = workspaceSearch.trim().toLowerCase()
     if (!query) return []
     return [
@@ -164,17 +213,17 @@ export default function WorkspacePage({
           id: `project-${project.project_id}`,
           type: 'Project',
           title: project.project_name,
-          subtitle: project.project_id,
+          subtitle: project.address || project.project_id,
           path: `/projects/${encodeURIComponent(project.project_id)}`,
         })),
-      ...submittals
-        .filter((item) => `${item.submittal_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query))
+      ...registerActivity.items
+        .filter((item) => `${item.submittal_no} ${item.description} ${item.project_name}`.toLowerCase().includes(query))
         .map((item) => ({
           id: `submittal-${item.id}`,
           type: 'Submittal',
-          title: item.submittal_number || `Submittal ${item.id}`,
-          subtitle: item.subject || item.project_id || 'No subject',
-          path: item.project_id ? `/projects/${encodeURIComponent(item.project_id)}/submittals/${item.id}` : '/submittals',
+          title: item.submittal_no,
+          subtitle: `${item.description} · ${item.project_name}`,
+          path: `/submittals/${encodeURIComponent(item.project_id)}/items/${item.id}`,
         })),
       ...rfis
         .filter((item) => `${item.rfi_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query))
@@ -186,147 +235,47 @@ export default function WorkspacePage({
           path: item.project_id ? `/projects/${encodeURIComponent(item.project_id)}/rfis/${item.id}` : '/rfis',
         })),
     ].slice(0, 8)
-  }, [workspaceSearch, projects, submittals, rfis])
+  }, [workspaceSearch, projects, registerActivity.items, rfis])
 
   return (
-    <div className="neo-dashboard min-h-screen bg-[#151823] px-3 py-5 md:px-8 md:py-6">
-      <div
-        className={`grid w-full grid-cols-1 gap-3 rounded-[26px] border border-white/5 bg-[linear-gradient(130deg,#141726,#1a1e2f)] p-3 shadow-[0_40px_80px_rgba(0,0,0,0.45)] ${
-          menuOpen ? 'md:grid-cols-[60px_220px_1fr]' : 'md:grid-cols-[60px_1fr]'
-        }`}
-      >
-        <aside className="hidden rounded-2xl bg-[#0f1220] p-3 md:flex md:flex-col md:items-center md:justify-between">
-          <button
-            type="button"
-            onClick={() => setMenuOpen((prev) => !prev)}
-            className="mt-1 flex min-h-[52px] w-full flex-col items-center justify-center rounded-xl border border-[#2f3b61] bg-[linear-gradient(180deg,#1a2138,#141a2d)] px-2 py-2 text-[#dbe2ff] transition hover:bg-[#212844]"
-            aria-label={menuToggleLabel}
-            title={menuToggleLabel}
-          >
-            {menuOpen ? (
-              <span className="relative block h-4 w-4" aria-hidden="true">
-                <span className="absolute left-1/2 top-1/2 h-[2px] w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-current" />
-                <span className="absolute left-1/2 top-1/2 h-[2px] w-4 -translate-x-1/2 -translate-y-1/2 -rotate-45 rounded-full bg-current" />
-              </span>
-            ) : (
-              <span className="relative block h-4 w-4" aria-hidden="true">
-                <span className="absolute left-0 top-0 h-[2px] w-4 rounded-full bg-current" />
-                <span className="absolute left-0 top-[6px] h-[2px] w-4 rounded-full bg-current" />
-                <span className="absolute left-0 top-[12px] h-[2px] w-4 rounded-full bg-current" />
-              </span>
-            )}
-          </button>
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[#7b83a8]">
-            <div className="relative flex h-full flex-col items-center justify-center gap-3">
-              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-[#2e3a60] to-transparent" />
-            {sidebarMarkers.map((marker) => (
-                <div key={marker} className="relative flex h-10 w-10 items-center justify-center">
-                  <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#89a4ff]" />
-                  <span className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#314067]" />
-                </div>
-            ))}
-            <div className="relative grid h-12 w-12 grid-cols-3 gap-1 rounded-lg border border-[#314067] bg-[#151a30] p-1">
-              <span className="rounded-sm bg-[#5a678f]" />
-              <span className="rounded-sm bg-[#2d3758]" />
-              <span className="rounded-sm bg-[#5a678f]" />
-              <span className="rounded-sm bg-[#2d3758]" />
-              <span className="rounded-sm bg-[#89a4ff]" />
-              <span className="rounded-sm bg-[#2d3758]" />
-              <span className="rounded-sm bg-[#5a678f]" />
-              <span className="rounded-sm bg-[#2d3758]" />
-              <span className="rounded-sm bg-[#5a678f]" />
-            </div>
-            </div>
-          </div>
-        </aside>
+    <div className="min-h-screen bg-canvas text-ink md:flex">
+      <Sidebar
+        groups={navGroups}
+        activeId={route.tab}
+        recentProjects={recentProjects}
+        activeProjectId={openProject?.project_id ?? null}
+        health={health}
+        collapsed={sidebarCollapsed}
+        mobileOpen={mobileMenuOpen}
+        onToggleCollapsed={toggleSidebar}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+        onNavigate={navigate}
+      />
 
-        <aside
-          ref={menuRef}
-          className={`${menuOpen ? 'block' : 'hidden'} fixed inset-y-3 left-3 z-40 w-[250px] rounded-2xl bg-[#111528] p-4 shadow-2xl md:static md:w-auto md:p-5 md:shadow-none`}
-        >
-          <div className="mb-4 border-b border-white/10 pb-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-[#8f98bf]">MG3 Group</p>
-            <p className="mt-1 text-sm font-semibold text-[#dbe2ff]">Project Management</p>
-          </div>
-          <nav className="space-y-2">
-            {navItems.map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => navigate(`/${id}`)}
-                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                  route.tab === id ? 'bg-[#b9f5eb] font-semibold text-[#0f172a]' : 'text-[#8a92b2] hover:bg-white/5 hover:text-[#dbe2ff]'
-                }`}
-              >
-                <span>{label}</span>
-                <span className="text-xs">{'>'}</span>
-              </button>
-            ))}
-          </nav>
+      <div className="min-w-0 flex-1">
+        <TopBar
+          title={pageTitle}
+          subtitle={openProject?.project_name}
+          user={user}
+          theme={theme}
+          searchQuery={workspaceSearch}
+          searchResults={searchResults}
+          onSearchQueryChange={setWorkspaceSearch}
+          onSearchSelect={(result) => {
+            setWorkspaceSearch('')
+            navigate(result.path)
+          }}
+          onToggleTheme={toggleTheme}
+          onOpenMenu={() => setMobileMenuOpen(true)}
+          onLogout={onLogout}
+        />
 
-          <div className="mt-6 rounded-xl border border-white/10 bg-[#171c31] p-3 text-xs text-[#95a0c7]">
-            <p>API: <span className="font-semibold text-[#cfd8fb]">{health}</span></p>
-            <p className="mt-1">User: <span className="font-semibold text-[#cfd8fb]">{user.username}</span></p>
-            <button onClick={onLogout} className="mt-3 w-full rounded-md border border-white/20 py-1.5 text-[#dfe6ff] hover:bg-white/10">
-              Logout
-            </button>
-          </div>
-        </aside>
-        {menuOpen ? <button type="button" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-30 bg-black/35 md:hidden" aria-label="Close menu overlay" /> : null}
-
-        <main className="rounded-2xl bg-[#101426] p-4 md:p-5">
-          <header className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/5 bg-[#1a1f35] p-3">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-[#dbe2ff] md:hidden"
-            >
-              Abrir menu
-            </button>
-            <div ref={searchRef} className="relative min-w-[220px] flex-1">
-              <input
-                value={workspaceSearch}
-                onFocus={() => setShowSearchResults(true)}
-                onChange={(event) => {
-                  setWorkspaceSearch(event.target.value)
-                  updateGlobalSearchParam(event.target.value)
-                  setShowSearchResults(true)
-                }}
-                aria-label="Workspace search"
-                placeholder="Search projects, submittals, RFIs..."
-                className="w-full rounded-lg border border-white/10 bg-[#111528] px-3 py-2 text-sm text-[#c8d2f2] placeholder:text-[#7f89ae]"
-              />
-              {showSearchResults && workspaceSearch.trim() ? (
-                <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-white/10 bg-[#111528] p-2 shadow-2xl">
-                  {searchResults.length ? searchResults.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setWorkspaceSearch('')
-                        updateGlobalSearchParam('')
-                        setShowSearchResults(false)
-                        navigate(item.path)
-                      }}
-                      className="flex w-full items-start justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/5"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-[#eef3ff]">{item.title}</p>
-                        <p className="text-xs text-[#8f98bf]">{item.subtitle}</p>
-                      </div>
-                      <span className="rounded-full bg-[#1b2035] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-[#8ba6ff]">{item.type}</span>
-                    </button>
-                  )) : (
-                    <div className="px-3 py-2 text-sm text-[#8f98bf]">No results found.</div>
-                  )}
-                </div>
-              ) : null}
-            </div>
-            <span className="rounded-full bg-[#101426] px-3 py-1 text-xs text-[#9da7cd]">Today</span>
-            <span className="rounded-full bg-[#101426] px-3 py-1 text-xs text-[#9da7cd]">{user.username}</span>
-          </header>
-
+        <main className="min-w-0 px-4 pb-10 md:px-6">
           {message ? (
-            <div className={`save-toast fixed bottom-4 right-4 z-50 max-w-sm rounded-lg px-3 py-2 text-sm shadow-lg ${isErrorMessage ? 'border border-rose-300/70 bg-rose-50 text-rose-800' : 'border border-emerald-300/60 bg-emerald-50 text-emerald-800'}`}>
+            <div
+              role="status"
+              className={`save-toast fixed bottom-4 right-4 z-50 max-w-sm rounded-lg px-3 py-2 text-sm shadow-lg ${isErrorMessage ? 'border border-rose-300/70 bg-rose-50 text-rose-800' : 'border border-emerald-300/60 bg-emerald-50 text-emerald-800'}`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2">
                   <span className={`toast-check mt-[1px] inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${isErrorMessage ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
@@ -342,13 +291,12 @@ export default function WorkspacePage({
           ) : null}
 
           {route.tab === 'dashboard' ? (
-            <DashboardPanel summary={summary} projects={projects} submittals={submittals} rfis={rfis} onNavigate={navigate} />
+            <DashboardPanel summary={summary} projects={projects} registerActivity={registerActivity} rfis={rfis} onNavigate={navigate} />
           ) : null}
           {route.tab === 'projects' ? (
             <ProjectsPanel
               token={token}
               projects={projects}
-              submittals={submittals}
               rfis={rfis}
               routeProjectId={route.projectId}
               routeSubmittalId={route.submittalId}
@@ -356,10 +304,19 @@ export default function WorkspacePage({
               onNavigate={navigate}
               setMessage={setMessage}
               refreshWorkspace={refreshWorkspace}
+              onRegisterChanged={refreshRegisterCounts}
             />
           ) : null}
           {route.tab === 'submittals' ? (
-            <SubmittalsPanel token={token} projects={projects} submittals={submittals} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
+            <SubmittalsPanel
+              token={token}
+              projects={projects}
+              routeProjectId={route.projectId}
+              routeItemId={route.submittalId}
+              onNavigate={navigate}
+              setMessage={setMessage}
+              onChanged={refreshRegisterCounts}
+            />
           ) : null}
           {route.tab === 'rfis' ? (
             <RfisPanel token={token} projects={projects} rfis={rfis} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
@@ -367,7 +324,10 @@ export default function WorkspacePage({
           {route.tab === 'contacts' ? (
             <ContactsPanel token={token} setMessage={setMessage} />
           ) : null}
-          {route.tab === 'users' ? <UsersPanel users={users} /> : null}
+          {route.tab === 'users' ? (
+            <UsersPanel token={token} users={users} currentUser={user} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
+          ) : null}
+          {route.tab === 'master' ? <MasterListPanel token={token} isAdmin={Boolean(user.is_admin)} setMessage={setMessage} /> : null}
         </main>
       </div>
     </div>

@@ -10,7 +10,7 @@ export const authRequired = async (req, res, next) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT id, username, email, full_name
+      `SELECT id, username, email, full_name, is_admin
        FROM app_users
        WHERE api_token = $1`,
       [token]
@@ -28,4 +28,12 @@ export const authRequired = async (req, res, next) => {
     }
     return res.status(500).json({ detail: "Authentication failed." });
   }
+};
+
+// Use after authRequired.
+export const adminRequired = (req, res, next) => {
+  if (!req.user?.is_admin) {
+    return res.status(403).json({ detail: "Only admins can do this." });
+  }
+  return next();
 };

@@ -4,7 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="color-scheme" content="light dark" />
     <title>ProMag | MG3</title>
+    <script>
+      // Apply the saved (or system) theme before the first paint to avoid a flash of the wrong theme.
+      ;(function () {
+        var theme = null
+        try {
+          theme = localStorage.getItem('promag_theme')
+        } catch (error) {}
+        if (theme !== 'day' && theme !== 'night') {
+          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day'
+        }
+        document.documentElement.dataset.theme = theme
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

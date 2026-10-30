@@ -1,7 +1,7 @@
 import { requestJson } from './http'
 import type { EorType } from '../app/eorTypes'
 import type { AuthUser } from '../types/auth'
-import type { AorRecord, ContractorRecord, DashboardSummary, EorRecord, ProjectRecord, RfiRecord, SubcontractorRecord, SubmittalRecord } from '../types/workspace'
+import type { AorRecord, ContractorRecord, DashboardSummary, EorRecord, ProjectRecord, RfiRecord, SubcontractorRecord } from '../types/workspace'
 
 const emptySummary: DashboardSummary = {
   active_projects: 0,
@@ -102,23 +102,6 @@ export async function deleteContractor(token: string, id: number) {
   return requestJson<null>(`/contractors/${id}`, { token, method: 'DELETE' })
 }
 
-export async function fetchSubmittals(token: string): Promise<SubmittalRecord[]> {
-  const res = await requestJson<SubmittalRecord[]>('/submittals', { token })
-  return res.ok && Array.isArray(res.data) ? res.data : []
-}
-
-export async function createSubmittal(token: string, payload: Omit<SubmittalRecord, 'id'>) {
-  return requestJson<SubmittalRecord>('/submittals', { token, method: 'POST', body: payload })
-}
-
-export async function updateSubmittal(token: string, id: number, payload: Omit<SubmittalRecord, 'id'>) {
-  return requestJson<SubmittalRecord>(`/submittals/${id}`, { token, method: 'PUT', body: payload })
-}
-
-export async function deleteSubmittal(token: string, id: number) {
-  return requestJson<null>(`/submittals/${id}`, { token, method: 'DELETE' })
-}
-
 export async function fetchRfis(token: string): Promise<RfiRecord[]> {
   const res = await requestJson<RfiRecord[]>('/rfis', { token })
   return res.ok && Array.isArray(res.data) ? res.data : []
@@ -139,4 +122,8 @@ export async function deleteRfi(token: string, id: number) {
 export async function fetchUsers(token: string): Promise<AuthUser[]> {
   const res = await requestJson<AuthUser[]>('/auth/users', { token })
   return res.ok && Array.isArray(res.data) ? res.data : []
+}
+
+export async function updateUserAdmin(token: string, id: number, isAdmin: boolean) {
+  return requestJson<AuthUser>(`/auth/users/${id}/admin`, { token, method: 'PATCH', body: { is_admin: isAdmin } })
 }

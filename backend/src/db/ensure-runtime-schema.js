@@ -1,4 +1,5 @@
 import pool from "./pool.js";
+import { ensureSubmittalRegisterSchema } from "./submittal-register-schema.js";
 
 const ensureRuntimeSchemaSql = `
 CREATE TABLE IF NOT EXISTS contractors (
@@ -18,4 +19,5 @@ ADD COLUMN IF NOT EXISTS lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'opened';
 
 export const ensureRuntimeSchema = async () => {
   await pool.query(ensureRuntimeSchemaSql);
+  await ensureSubmittalRegisterSchema();
 };

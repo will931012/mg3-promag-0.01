@@ -43,30 +43,6 @@ export type ContractorRecord = {
   name: string
 }
 
-export type SubmittalRecord = {
-  id: number
-  project_id: string | null
-  division_csi: string | null
-  submittal_number: string | null
-  subject: string | null
-  contractor: string | null
-  date_received: string | null
-  sent_to_aor: string | null
-  sent_to_eor: string | null
-  sent_to_subcontractor: string | null
-  sent_to_date: string | null
-  approvers: string | null
-  approval_status: string | null
-  lifecycle_status: string | null
-  revision: string | null
-  due_date: string | null
-  days_pending: number | null
-  overall_status: string | null
-  responsible: string | null
-  workflow_stage: string | null
-  notes: string | null
-}
-
 export type RfiRecord = {
   id: number
   project_id: string | null
