@@ -20,7 +20,7 @@ export default function LoginForm({
   onSubmit,
 }: LoginFormProps) {
   return (
-    <form onSubmit={onSubmit} className="w-full rounded-2xl border border-white/20 bg-white p-8 shadow-soft backdrop-blur">
+    <form onSubmit={onSubmit} className="w-full rounded-2xl border border-line bg-surface p-8 shadow-soft backdrop-blur">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">MG3 Group</p>
       <h2 className="mt-3 text-3xl font-semibold text-slate-900">Sign in to ProMag</h2>
       <p className="mt-2 text-sm text-slate-500">Use your ProMag workspace credentials.</p>

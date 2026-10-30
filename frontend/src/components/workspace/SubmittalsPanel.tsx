@@ -56,7 +56,7 @@ export default function SubmittalsPanel({ token, projects, routeProjectId, route
               value={project?.project_id ?? ''}
               onChange={(event) => onNavigate(registerPath(event.target.value))}
               aria-label="Project"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+              className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
             >
               {project ? null : <option value="">Select a project</option>}
               {projects.map((item) => (

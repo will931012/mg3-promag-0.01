@@ -64,7 +64,7 @@ function ContactSection<T extends NamedRecord>({
   form,
 }: ContactSectionProps<T>) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
@@ -231,7 +231,7 @@ export default function ContactsPanel({ token, setMessage }: ContactsPanelProps)
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">AORs</h3>
@@ -281,7 +281,7 @@ export default function ContactsPanel({ token, setMessage }: ContactsPanelProps)
           </div>
         </article>
 
-        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">EORs</h3>
@@ -341,7 +341,7 @@ export default function ContactsPanel({ token, setMessage }: ContactsPanelProps)
           </div>
         </article>
 
-        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Contractors</h3>
@@ -389,7 +389,7 @@ export default function ContactsPanel({ token, setMessage }: ContactsPanelProps)
           </div>
         </article>
 
-        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Subcontractors</h3>

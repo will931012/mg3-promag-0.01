@@ -143,7 +143,7 @@ export default function RegisterItemDetail({
     if (!logDraft) return null
     const setLog = <K extends keyof LogEntryFields>(field: K, value: LogEntryFields[K]) => setLogDraft((prev) => (prev ? { ...prev, [field]: value } : prev))
     return (
-      <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-brand-200 bg-surface p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-4">
           <label className="text-sm text-slate-700">Rev
             <input type="number" min={0} value={logDraft.rev} onChange={(e) => setLog('rev', Number(e.target.value))} className={inputClass} />
@@ -198,7 +198,7 @@ export default function RegisterItemDetail({
   }
 
   return (
-    <article className="detail-card mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-md">
+    <article className="detail-card mt-4 rounded-xl border border-slate-200 bg-surface p-5 shadow-md">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{item.submittal_no}{item.master_item_id ? '' : ' · Project item'}</p>
@@ -340,7 +340,7 @@ export default function RegisterItemDetail({
             editingLogId === entry.id ? (
               <div key={entry.id}>{renderLogEditor()}</div>
             ) : (
-              <div key={entry.id} className={`rounded-xl border p-4 ${entry.ball_in_court === 'Superseded' ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-200 bg-white'}`}>
+              <div key={entry.id} className={`rounded-xl border p-4 ${entry.ball_in_court === 'Superseded' ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-200 bg-surface'}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-base font-semibold text-slate-900">Rev {entry.rev}</span>

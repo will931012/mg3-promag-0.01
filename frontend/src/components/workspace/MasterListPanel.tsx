@@ -106,7 +106,7 @@ export default function MasterListPanel({ token, isAdmin, setMessage }: MasterLi
       </p>
 
       {showNew && isAdmin ? (
-        <form onSubmit={(event) => void handleCreate(event)} className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-3">
+        <form onSubmit={(event) => void handleCreate(event)} className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-surface p-4 md:grid-cols-3">
           <label className="text-sm text-slate-700">Submittal No.
             <input required value={newDraft.submittal_no} onChange={(e) => setNewDraft({ ...newDraft, submittal_no: e.target.value })} placeholder="08 44 00-03" className={inputClass} />
           </label>
@@ -145,7 +145,7 @@ export default function MasterListPanel({ token, isAdmin, setMessage }: MasterLi
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search master list"
           aria-label="Search master list"
-          className="min-w-[220px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+          className="min-w-[220px] flex-1 rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
         />
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} />

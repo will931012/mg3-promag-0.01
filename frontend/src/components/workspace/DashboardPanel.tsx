@@ -229,13 +229,13 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
   }, [projects, submittals, rfis, currentDate])
 
   return (
-    <section className="space-y-3 text-[#d9e2ff]">
-      <div className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '0ms' }}>
+    <section className="space-y-3 text-ink-soft">
+      <div className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '0ms' }}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-[#8f98bf]">Construction Control</p>
-            <h2 className="text-xl font-semibold text-[#f0f4ff]">Project Operations Snapshot</h2>
-            <p className="mt-1 text-sm text-[#9ea8cd]">Monitor project load, review flow and field response pressure from one place.</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-ink-muted">Construction Control</p>
+            <h2 className="text-xl font-semibold text-ink">Project Operations Snapshot</h2>
+            <p className="mt-1 text-sm text-ink-muted">Monitor project load, review flow and field response pressure from one place.</p>
           </div>
           <div className="grid min-w-[240px] gap-2 sm:grid-cols-2">
             {quickActions.map((action) => (
@@ -243,10 +243,10 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
                 key={action.label}
                 type="button"
                 onClick={() => onNavigate(action.path)}
-                className="rounded-xl border border-[#314067] bg-[#111628] px-3 py-2 text-left transition hover:border-[#8ba6ff] hover:bg-[#171d34]"
+                className="rounded-xl border border-line bg-card px-3 py-2 text-left transition hover:border-accent hover:bg-hover"
               >
-                <p className="text-sm font-semibold text-[#edf2ff]">{action.label}</p>
-                <p className="text-xs text-[#8f98bf]">{action.detail}</p>
+                <p className="text-sm font-semibold text-ink">{action.label}</p>
+                <p className="text-xs text-ink-muted">{action.detail}</p>
               </button>
             ))}
           </div>
@@ -266,11 +266,11 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
               key={card.label}
               type="button"
               onClick={() => onNavigate(to)}
-              className="slide-in rounded-lg border border-white/10 bg-[#111628] p-3 text-left transition hover:border-[#5be1c7]/60 hover:bg-[#171d34]"
+              className="slide-in rounded-lg border border-line bg-card p-3 text-left transition hover:border-accent-teal/60 hover:bg-hover"
               style={{ animationDelay: `${60 + (index * 45)}ms` }}
             >
-              <p className="text-xs font-semibold tracking-[0.06em] text-[#8f98bf]">{card.label}</p>
-              <p className="mt-1 text-2xl font-bold text-[#f2f7ff]">{card.value}</p>
+              <p className="text-xs font-semibold tracking-[0.06em] text-ink-muted">{card.label}</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{card.value}</p>
               <div className="mt-1">
                 <StatusBadge label={card.chip} tone={card.label === 'Field Pressure' ? 'warning' : 'info'} />
               </div>
@@ -279,26 +279,26 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
         </div>
       </div>
 
-      <div className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '120ms' }}>
-        <h3 className="text-lg font-semibold text-[#f0f4ff]">Quick Links</h3>
+      <div className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '120ms' }}>
+        <h3 className="text-lg font-semibold text-ink">Quick Links</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
-            <p className="text-xs text-[#8f98bf]">Projects</p>
+          <div className="rounded-lg border border-line/60 bg-card p-3">
+            <p className="text-xs text-ink-muted">Projects</p>
             <div className="mt-2 space-y-2">
               {topProjects.length ? topProjects.map((project) => (
                 <button
                   key={project.project_id}
                   type="button"
                   onClick={() => onNavigate(`/projects/${encodeURIComponent(project.project_id)}`)}
-                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm font-medium text-[#d9e2ff] hover:bg-white/10"
+                  className="block w-full rounded bg-ink/5 px-2 py-1 text-left text-sm font-medium text-ink-soft hover:bg-ink/10"
                 >
                   {project.project_name}
                 </button>
               )) : <EmptyState title="No projects yet" description="Create your first project to populate dashboard links." ctaLabel="Go to Projects" onCta={() => onNavigate('/projects')} />}
             </div>
           </div>
-          <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
-            <p className="text-xs text-[#8f98bf]">Submittals</p>
+          <div className="rounded-lg border border-line/60 bg-card p-3">
+            <p className="text-xs text-ink-muted">Submittals</p>
             <div className="mt-2 space-y-2">
               {urgentSubmittals.length ? urgentSubmittals.map((item) => (
                 <button
@@ -308,16 +308,16 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
                     if (!item.project_id) return
                     onNavigate(`/projects/${encodeURIComponent(item.project_id)}/submittals/${item.id}`)
                   }}
-                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm font-medium text-[#d9e2ff] hover:bg-white/10"
+                  className="block w-full rounded bg-ink/5 px-2 py-1 text-left text-sm font-medium text-ink-soft hover:bg-ink/10"
                 >
                   {item.submittal_no}
-                  <span className="block truncate text-xs font-normal text-[#8f98bf]">{item.alert || item.description}</span>
+                  <span className="block truncate text-xs font-normal text-ink-muted">{item.alert || item.description}</span>
                 </button>
               )) : <EmptyState title="No submissions yet" description="Log a submission in a project's register to track its review." ctaLabel="Go to Register" onCta={() => onNavigate('/submittals')} />}
             </div>
           </div>
-          <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
-            <p className="text-xs text-[#8f98bf]">RFIs</p>
+          <div className="rounded-lg border border-line/60 bg-card p-3">
+            <p className="text-xs text-ink-muted">RFIs</p>
             <div className="mt-2 space-y-2">
               {urgentRfis.length ? urgentRfis.map((item) => (
                 <button
@@ -327,7 +327,7 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
                     if (!item.project_id) return
                     onNavigate(`/projects/${encodeURIComponent(item.project_id)}/rfis/${item.id}`)
                   }}
-                  className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm font-medium text-[#d9e2ff] hover:bg-white/10"
+                  className="block w-full rounded bg-ink/5 px-2 py-1 text-left text-sm font-medium text-ink-soft hover:bg-ink/10"
                 >
                   {item.rfi_number || `RFI ${item.id}`}
                 </button>
@@ -338,19 +338,19 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1.5fr_1fr]">
-        <article className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '180ms' }}>
-          <h3 className="text-lg font-semibold text-[#f0f4ff]">Delivery Flow</h3>
-          <div className="mt-3 rounded-lg border border-white/5 bg-[#12172a] p-3">
+        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '180ms' }}>
+          <h3 className="text-lg font-semibold text-ink">Delivery Flow</h3>
+          <div className="mt-3 rounded-lg border border-line/60 bg-card p-3">
             <svg viewBox="0 0 100 100" className="h-40 w-full">
               <defs>
                 <linearGradient id="dashboardLine" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#6aead0" />
-                  <stop offset="100%" stopColor="#8ba6ff" />
+                  <stop offset="0%" style={{ stopColor: 'rgb(var(--accent-teal))' }} />
+                  <stop offset="100%" style={{ stopColor: 'rgb(var(--accent))' }} />
                 </linearGradient>
               </defs>
               <path d={deliveryPath} fill="none" stroke="url(#dashboardLine)" strokeWidth="2.5" strokeLinecap="round" />
             </svg>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-[#97a0c4] md:grid-cols-5">
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-ink-muted md:grid-cols-5">
               <span>Active: {summary.active_projects}</span>
               <span>Subm Open: {summary.submittals_open}</span>
               <span>Subm Late: {summary.submittals_late}</span>
@@ -359,48 +359,48 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
             </div>
           </div>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
-              <p className="text-xs text-[#8f98bf]">Due This Week</p>
-              <p className="text-2xl font-bold text-[#f0f4ff]">{submittalsDueSoon + rfisDueSoon}</p>
-              <p className="mt-1 text-xs text-[#97a0c4]">{dueTodayCount} due today</p>
+            <div className="rounded-lg border border-line/60 bg-card p-3">
+              <p className="text-xs text-ink-muted">Due This Week</p>
+              <p className="text-2xl font-bold text-ink">{submittalsDueSoon + rfisDueSoon}</p>
+              <p className="mt-1 text-xs text-ink-muted">{dueTodayCount} due today</p>
             </div>
-            <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">
-              <p className="text-xs text-[#8f98bf]">Overdue Pressure</p>
-              <p className="text-2xl font-bold text-[#f0f4ff]">{overdueCount}</p>
-              <p className="mt-1 text-xs text-[#97a0c4]">{summary.submittals_late} submittals and {summary.rfis_overdue_open} RFIs</p>
+            <div className="rounded-lg border border-line/60 bg-card p-3">
+              <p className="text-xs text-ink-muted">Overdue Pressure</p>
+              <p className="text-2xl font-bold text-ink">{overdueCount}</p>
+              <p className="mt-1 text-xs text-ink-muted">{summary.submittals_late} submittals and {summary.rfis_overdue_open} RFIs</p>
             </div>
           </div>
         </article>
 
-        <article className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '230ms' }}>
-          <h3 className="text-lg font-semibold text-[#f0f4ff]">Project Distribution</h3>
+        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '230ms' }}>
+          <h3 className="text-lg font-semibold text-ink">Project Distribution</h3>
           <div className="mt-3 space-y-3 text-xs">
             <div>
-              <div className="mb-1 flex justify-between text-[#97a0c4]"><span>Preliminary</span><span>{projectPhase.preliminary}</span></div>
-              <div className="h-2 rounded-full bg-white/10"><div className="h-2 rounded-full bg-[#95f2df]" style={{ width: `${safePercent(projectPhase.preliminary, totalProjects)}%` }} /></div>
+              <div className="mb-1 flex justify-between text-ink-muted"><span>Preliminary</span><span>{projectPhase.preliminary}</span></div>
+              <div className="h-2 rounded-full bg-ink/10"><div className="h-2 rounded-full bg-accent-teal" style={{ width: `${safePercent(projectPhase.preliminary, totalProjects)}%` }} /></div>
             </div>
             <div>
-              <div className="mb-1 flex justify-between text-[#97a0c4]"><span>Construction</span><span>{projectPhase.construction}</span></div>
-              <div className="h-2 rounded-full bg-white/10"><div className="h-2 rounded-full bg-[#8ba6ff]" style={{ width: `${safePercent(projectPhase.construction, totalProjects)}%` }} /></div>
+              <div className="mb-1 flex justify-between text-ink-muted"><span>Construction</span><span>{projectPhase.construction}</span></div>
+              <div className="h-2 rounded-full bg-ink/10"><div className="h-2 rounded-full bg-accent" style={{ width: `${safePercent(projectPhase.construction, totalProjects)}%` }} /></div>
             </div>
             <div>
-              <div className="mb-1 flex justify-between text-[#97a0c4]"><span>Completed</span><span>{projectPhase.completed}</span></div>
-              <div className="h-2 rounded-full bg-white/10"><div className="h-2 rounded-full bg-[#ffd072]" style={{ width: `${safePercent(projectPhase.completed, totalProjects)}%` }} /></div>
+              <div className="mb-1 flex justify-between text-ink-muted"><span>Completed</span><span>{projectPhase.completed}</span></div>
+              <div className="h-2 rounded-full bg-ink/10"><div className="h-2 rounded-full bg-accent-gold" style={{ width: `${safePercent(projectPhase.completed, totalProjects)}%` }} /></div>
             </div>
           </div>
-          <h4 className="mt-5 text-xs uppercase tracking-[0.12em] text-[#8f98bf]">Priority Mix</h4>
+          <h4 className="mt-5 text-xs uppercase tracking-[0.12em] text-ink-muted">Priority Mix</h4>
           <div className="mt-2 grid gap-2 text-sm">
-            <div className="flex items-center justify-between rounded-md bg-[#12172a] px-3 py-2"><span>High</span><span>{priorityLoad.high}</span></div>
-            <div className="flex items-center justify-between rounded-md bg-[#12172a] px-3 py-2"><span>Medium</span><span>{priorityLoad.medium}</span></div>
-            <div className="flex items-center justify-between rounded-md bg-[#12172a] px-3 py-2"><span>Low</span><span>{priorityLoad.low}</span></div>
+            <div className="flex items-center justify-between rounded-md bg-card px-3 py-2"><span>High</span><span>{priorityLoad.high}</span></div>
+            <div className="flex items-center justify-between rounded-md bg-card px-3 py-2"><span>Medium</span><span>{priorityLoad.medium}</span></div>
+            <div className="flex items-center justify-between rounded-md bg-card px-3 py-2"><span>Low</span><span>{priorityLoad.low}</span></div>
           </div>
         </article>
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1.2fr_1fr_1fr]">
-        <article className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '280ms' }}>
+        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '280ms' }}>
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-[#f0f4ff]">Attention Board</h3>
+            <h3 className="text-lg font-semibold text-ink">Attention Board</h3>
             <StatusBadge label={attentionItems.length ? `${attentionItems.length} critical items` : 'No urgent blockers'} tone={attentionItems.length ? 'warning' : 'success'} />
           </div>
           <div className="mt-3 space-y-2">
@@ -409,13 +409,13 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
                 key={item.id}
                 type="button"
                 onClick={() => onNavigate(item.path)}
-                className="flex w-full items-start justify-between rounded-lg border border-[#2b3353] bg-[#12172a] px-3 py-3 text-left transition hover:border-[#ffcf76] hover:bg-[#171d34]"
+                className="flex w-full items-start justify-between rounded-lg border border-line bg-card px-3 py-3 text-left transition hover:border-accent-gold hover:bg-hover"
               >
                 <div>
-                  <p className="text-sm font-semibold text-[#eef3ff]">{item.title}</p>
-                  <p className="mt-1 text-xs text-[#97a0c4]">{item.meta}</p>
+                  <p className="text-sm font-semibold text-ink">{item.title}</p>
+                  <p className="mt-1 text-xs text-ink-muted">{item.meta}</p>
                 </div>
-                <span className="rounded-full bg-[#2a2030] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#ffd072]">{item.type}</span>
+                <span className="rounded-full bg-accent-gold/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-gold">{item.type}</span>
               </button>
             )) : (
               <EmptyState title="No urgent items" description="Late submittals and overdue RFIs will show here for immediate follow-up." ctaLabel="Review Dashboard" onCta={() => onNavigate('/dashboard')} />
@@ -423,21 +423,21 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
           </div>
         </article>
 
-        <article className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '320ms' }}>
-          <h3 className="text-lg font-semibold text-[#f0f4ff]">Recent Activity</h3>
+        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '320ms' }}>
+          <h3 className="text-lg font-semibold text-ink">Recent Activity</h3>
           <div className="mt-3 space-y-2">
             {recentActivity.length ? recentActivity.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onNavigate(item.path)}
-                className="w-full rounded-lg border border-[#2b3353] bg-[#12172a] px-3 py-3 text-left transition hover:border-[#8ba6ff] hover:bg-[#171d34]"
+                className="w-full rounded-lg border border-line bg-card px-3 py-3 text-left transition hover:border-accent hover:bg-hover"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-[#eef3ff]">{item.title}</p>
-                  <span className="text-[10px] uppercase tracking-[0.14em] text-[#8f98bf]">{item.kind}</span>
+                  <p className="text-sm font-semibold text-ink">{item.title}</p>
+                  <span className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">{item.kind}</span>
                 </div>
-                <p className="mt-1 text-xs text-[#97a0c4]">{item.subtitle}</p>
+                <p className="mt-1 text-xs text-ink-muted">{item.subtitle}</p>
               </button>
             )) : (
               <EmptyState title="No activity yet" description="New submittals and RFIs will appear here as the workspace grows." ctaLabel="Go to Projects" onCta={() => onNavigate('/projects')} />
@@ -445,20 +445,20 @@ export default function DashboardPanel({ summary, projects, registerActivity, rf
           </div>
         </article>
 
-        <article className="slide-in rounded-xl border border-white/10 bg-[#1b2035] p-4" style={{ animationDelay: '360ms' }}>
-          <h3 className="text-lg font-semibold text-[#f0f4ff]">Project Health</h3>
+        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '360ms' }}>
+          <h3 className="text-lg font-semibold text-ink">Project Health</h3>
           <div className="mt-3 space-y-2">
             {projectHealth.length ? projectHealth.map((project) => (
               <button
                 key={project.projectId}
                 type="button"
                 onClick={() => onNavigate(`/projects/${encodeURIComponent(project.projectId)}`)}
-                className="w-full rounded-lg border border-[#2b3353] bg-[#12172a] px-3 py-3 text-left transition hover:border-[#5be1c7]/60 hover:bg-[#171d34]"
+                className="w-full rounded-lg border border-line bg-card px-3 py-3 text-left transition hover:border-accent-teal/60 hover:bg-hover"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-[#eef3ff]">{project.name}</p>
-                    <p className="mt-1 text-xs text-[#97a0c4]">{project.openSubmittals} submittals open, {project.openRfis} RFIs open</p>
+                    <p className="text-sm font-semibold text-ink">{project.name}</p>
+                    <p className="mt-1 text-xs text-ink-muted">{project.openSubmittals} submittals open, {project.openRfis} RFIs open</p>
                   </div>
                   <StatusBadge label={project.late ? `${project.late} late` : 'On track'} tone={project.late ? 'warning' : 'success'} />
                 </div>

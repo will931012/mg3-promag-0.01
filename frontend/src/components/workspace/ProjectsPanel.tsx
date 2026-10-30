@@ -497,7 +497,7 @@ export default function ProjectsPanel({
             subtitle={selectedRfiDetail ? 'Edit and save changes with clear navigation controls.' : 'Switch between the shop drawing register and RFIs for this project.'}
           />
           {selectedRfiDetail ? (
-            <article className="detail-card mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-5 shadow-md">
+            <article className="detail-card mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-surface p-5 shadow-md">
               <h3 className="text-2xl font-semibold text-slate-900">RFI Detail Page</h3>
               <p className="mt-1 text-sm text-slate-600">Edit and save this RFI from here.</p>
               <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -505,21 +505,21 @@ export default function ProjectsPanel({
                   <input
                     value={rfiDraft?.project_id ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, project_id: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">RFI #
                   <input
                     value={rfiDraft?.rfi_number ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, rfi_number: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Status
                   <select
                     value={rfiDraft?.status ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, status: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   >
                     <option value="">Select status</option>
                     {RFI_STATUS_OPTIONS.map((option) => (
@@ -531,7 +531,7 @@ export default function ProjectsPanel({
                   <input
                     value={rfiDraft?.subject ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, subject: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Date Sent
@@ -539,7 +539,7 @@ export default function ProjectsPanel({
                     type="date"
                     value={rfiDraft?.date_sent ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, date_sent: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Response Due
@@ -547,7 +547,7 @@ export default function ProjectsPanel({
                     type="date"
                     value={rfiDraft?.response_due ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, response_due: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Date Answered
@@ -555,35 +555,35 @@ export default function ProjectsPanel({
                     type="date"
                     value={rfiDraft?.date_answered ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, date_answered: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">From Contractor
                   <input
                     value={rfiDraft?.from_contractor ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, from_contractor: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Sent To AOR
                   <input
                     value={rfiDraft?.sent_to_aor ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, sent_to_aor: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Sent To EOR
                   <input
                     value={rfiDraft?.sent_to_eor ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, sent_to_eor: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Sent To Subcontractor
                   <input
                     value={rfiDraft?.sent_to_subcontractor ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, sent_to_subcontractor: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Sent To Date
@@ -591,14 +591,14 @@ export default function ProjectsPanel({
                     type="date"
                     value={rfiDraft?.sent_to_date ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, sent_to_date: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700">Responsible
                   <input
                     value={rfiDraft?.responsible ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, responsible: e.target.value } : prev))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700 lg:col-span-3">Description
@@ -606,7 +606,7 @@ export default function ProjectsPanel({
                     value={rfiDraft?.description ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
                     rows={4}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
                 <label className="text-sm text-slate-700 lg:col-span-3">Notes
@@ -614,11 +614,11 @@ export default function ProjectsPanel({
                     value={rfiDraft?.notes ?? ''}
                     onChange={(e) => setRfiDraft((prev) => (prev ? { ...prev, notes: e.target.value } : prev))}
                     rows={4}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-slate-900"
                   />
                 </label>
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 md:sticky md:bottom-0 md:bg-white">
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 md:sticky md:bottom-0 md:bg-surface">
                 <StatusBadge label={hasUnsavedRfiDetail ? 'Unsaved Changes' : 'All Changes Saved'} tone={hasUnsavedRfiDetail ? 'warning' : 'success'} />
                 <PrimaryButton type="button" onClick={handleSaveRfiDetail} disabled={isSavingRfiDetail}>
                   {isSavingRfiDetail ? 'Saving...' : 'Save Changes'}
@@ -665,7 +665,7 @@ export default function ProjectsPanel({
             </article>
           ) : (
             <>
-              <article className="detail-card mx-auto w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md">
+              <article className="detail-card mx-auto w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-md">
                 <img src={selectedProject.image_url || BUILDING_PLACEHOLDER} alt="Project placeholder building" className="h-56 w-full object-cover" />
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -723,12 +723,12 @@ export default function ProjectsPanel({
                           value={detailSearch}
                           onChange={(event) => setDetailSearch(event.target.value)}
                           placeholder="Search RFI number or subject"
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                          className="w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
                         />
                         <select
                           value={detailTimingFilter}
                           onChange={(event) => setDetailTimingFilter(event.target.value as 'all' | 'late' | 'this_week')}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                          className="w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
                         >
                           <option value="all">All timing</option>
                           <option value="late">Late only</option>
@@ -767,7 +767,7 @@ export default function ProjectsPanel({
                     </>
                   ) : null}
 
-                  <article className="detail-card relative z-10 mx-auto w-[260px] rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
+                  <article className="detail-card relative z-10 mx-auto w-[260px] rounded-xl border border-brand-200 bg-surface p-4 shadow-sm">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Project</p>
                     <p className="mt-2 text-lg font-semibold text-slate-900">{selectedProject.project_name}</p>
                     <p className="mt-1 text-xs text-slate-500">{selectedProject.project_id}</p>
@@ -777,7 +777,7 @@ export default function ProjectsPanel({
                     {firstDetailRow.map((item, delayIndex) => (
                       <article
                         key={`rfi-${item.id}`}
-                        className="detail-card relative z-10 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                        className="detail-card relative z-10 rounded-xl border border-slate-200 bg-surface p-4 shadow-sm"
                         style={{ animationDelay: `${delayIndex * 70}ms` }}
                       >
                         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">RFI #{item.id}</p>
@@ -823,7 +823,7 @@ export default function ProjectsPanel({
                           return (
                       <article
                         key={`rfi-${item.id}`}
-                        className="detail-card relative z-10 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                        className="detail-card relative z-10 rounded-xl border border-slate-200 bg-surface p-4 shadow-sm"
                         style={{ animationDelay: `${delayIndex * 70}ms` }}
                       >
                         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">RFI #{item.id}</p>
@@ -957,7 +957,7 @@ export default function ProjectsPanel({
                     className="w-full rounded-lg border border-slate-300 px-3 py-2"
                   />
                   {showAorSuggestions ? (
-                    <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-md">
+                    <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-slate-200 bg-surface shadow-md">
                       {aorInput.trim().length < 1 ? null : filteredAors.length > 0 ? (
                         filteredAors.map((item) => (
                           <button
@@ -1071,7 +1071,7 @@ export default function ProjectsPanel({
                     className="w-full rounded-lg border border-slate-300 px-3 py-2"
                   />
                   {showEorSuggestions ? (
-                    <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-md">
+                    <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-slate-200 bg-surface shadow-md">
                       {eorInput.trim().length < 1 ? null : filteredEors.length > 0 ? (
                         filteredEors.map((item) => (
                           <button
@@ -1279,7 +1279,7 @@ export default function ProjectsPanel({
 
       {showAorModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">Add AOR</h3>
             <label className="mt-3 block text-sm text-slate-700">
               AOR Name
@@ -1325,7 +1325,7 @@ export default function ProjectsPanel({
 
       {showEorModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">Add EOR</h3>
             <label className="mt-3 block text-sm text-slate-700">
               EOR Type

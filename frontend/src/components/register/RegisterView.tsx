@@ -210,7 +210,7 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
           ['Alerts', counts.alerts, counts.alerts ? 'danger' : 'neutral'],
           ['Not used', counts.notUsed, 'neutral'],
         ].map(([label, value, tone]) => (
-          <div key={String(label)} className="rounded-xl border border-slate-200 bg-white p-3">
+          <div key={String(label)} className="rounded-xl border border-slate-200 bg-surface p-3">
             <p className="text-xs uppercase tracking-[0.12em] text-slate-500">{label}</p>
             <p className={`mt-1 text-2xl font-semibold ${tone === 'danger' ? 'text-rose-700' : tone === 'success' ? 'text-emerald-700' : tone === 'info' ? 'text-sky-700' : 'text-slate-900'}`}>
               {value}
@@ -225,29 +225,29 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search number, description, sub, notes"
           aria-label="Search register"
-          className="min-w-[220px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+          className="min-w-[220px] flex-1 rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
         />
-        <select value={usage} onChange={(event) => setUsage(event.target.value as UsageFilter)} aria-label="Usage" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+        <select value={usage} onChange={(event) => setUsage(event.target.value as UsageFilter)} aria-label="Usage" className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900">
           <option value="in_use">Used on this project</option>
           <option value="not_used">Not used</option>
           <option value="all">All items</option>
         </select>
-        <select value={discipline} onChange={(event) => setDiscipline(event.target.value)} aria-label="Discipline" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+        <select value={discipline} onChange={(event) => setDiscipline(event.target.value)} aria-label="Discipline" className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900">
           <option value="">All disciplines</option>
           {(meta?.disciplines ?? []).map((option) => <option key={option}>{option}</option>)}
         </select>
-        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Status" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Status" className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900">
           <option value="">All statuses</option>
           {statusOptions.map((option) => <option key={option}>{option}</option>)}
         </select>
-        <select value={ball} onChange={(event) => setBall(event.target.value as BallFilter)} aria-label="Ball in court" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+        <select value={ball} onChange={(event) => setBall(event.target.value as BallFilter)} aria-label="Ball in court" className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900">
           <option value="">Ball: anyone</option>
           <option value="Subcontractor">Ball: subcontractor</option>
           <option value="GC">Ball: GC</option>
           <option value="reviewer">Ball: reviewer</option>
           <option value="Closed">Closed</option>
         </select>
-        <label className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-700">
           <input type="checkbox" checked={alertsOnly} onChange={(event) => setAlertsOnly(event.target.checked)} />
           Alerts only
         </label>
@@ -265,7 +265,7 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
               onChange={(event) => setReviewDaysInput(event.target.value)}
               inputMode="numeric"
               aria-label="Review period in calendar days"
-              className="w-16 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900"
+              className="w-16 rounded-lg border border-slate-300 bg-surface px-2 py-1.5 text-sm text-slate-900"
             />
             days
           </label>
@@ -278,7 +278,7 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
       </div>
 
       {showNewItem ? (
-        <form onSubmit={(event) => void handleCreateItem(event)} className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+        <form onSubmit={(event) => void handleCreateItem(event)} className="mt-3 rounded-xl border border-slate-200 bg-surface p-4">
           <p className="text-sm font-semibold text-slate-900">Add an item for this project only</p>
           <p className="mt-1 text-xs text-slate-500">Number it CSI section + sequence, e.g. 08 44 00-03. To add it to every project, ask an admin to add it to the master list.</p>
           <div className="mt-3 grid gap-3 md:grid-cols-3">

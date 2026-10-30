@@ -30,5 +30,5 @@ export function formatDate(value: string | null | undefined): string {
   return year && month && day ? `${month}/${day}/${year}` : value
 }
 
-export const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900'
-export const cellInputClass = 'w-full min-w-[7rem] rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900'
+export const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900'
+export const cellInputClass = 'w-full min-w-[7rem] rounded border border-slate-300 bg-surface px-2 py-1 text-sm text-slate-900'
