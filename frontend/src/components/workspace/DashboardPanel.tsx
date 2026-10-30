@@ -2,12 +2,13 @@ import { useMemo } from 'react'
 
 import EmptyState from '../common/EmptyState'
 import StatusBadge from '../common/StatusBadge'
-import type { DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../../types/workspace'
+import type { RegisterActivity, RegisterActivityItem } from '../../types/register'
+import type { DashboardSummary, ProjectRecord, RfiRecord } from '../../types/workspace'
 
 type DashboardPanelProps = {
   summary: DashboardSummary
   projects: ProjectRecord[]
-  submittals: SubmittalRecord[]
+  registerActivity: RegisterActivity
   rfis: RfiRecord[]
   onNavigate: (path: string) => void
 }
@@ -53,11 +54,8 @@ function normalizePriority(value: string | null): 'high' | 'medium' | 'low' | 'o
   return 'other'
 }
 
-function isClosedSubmittal(item: SubmittalRecord): boolean {
-  const lifecycle = String(item.lifecycle_status || '').toLowerCase()
-  if (lifecycle === 'closed') return true
-  const status = String(item.overall_status || item.approval_status || '').toLowerCase()
-  return status.includes('approved') || status.includes('closed') || status.includes('complete')
+function isClosedSubmittal(item: RegisterActivityItem): boolean {
+  return item.ball_in_court === 'Closed'
 }
 
 function isClosedRfi(item: RfiRecord): boolean {
@@ -67,7 +65,9 @@ function isClosedRfi(item: RfiRecord): boolean {
   return status.includes('approved') || status.includes('closed') || status.includes('answered') || status.includes('complete')
 }
 
-export default function DashboardPanel({ summary, projects, submittals, rfis, onNavigate }: DashboardPanelProps) {
+export default function DashboardPanel({ summary, projects, registerActivity, rfis, onNavigate }: DashboardPanelProps) {
+  // Register items that have been submitted or have an alert. review_due is set while a reviewer has it.
+  const submittals = registerActivity.items
   const totalProjects = Math.max(projects.length, summary.active_projects)
   const pressureCases = summary.submittals_late + summary.rfis_overdue_open
   const deliveryFlow = useMemo(
@@ -91,7 +91,7 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
   }, [projects])
 
   const submittalsDueSoon = useMemo(
-    () => submittals.filter((item) => item.due_date && item.due_date >= currentDate && item.due_date <= nextWeekDate && !isClosedSubmittal(item)).length,
+    () => submittals.filter((item) => item.review_due && item.review_due >= currentDate && item.review_due <= nextWeekDate && !isClosedSubmittal(item)).length,
     [submittals, currentDate, nextWeekDate]
   )
   const rfisDueSoon = useMemo(
@@ -100,19 +100,19 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
   )
   const dueTodayCount = useMemo(
     () =>
-      submittals.filter((item) => item.due_date === currentDate && !isClosedSubmittal(item)).length +
+      submittals.filter((item) => item.review_due === currentDate && !isClosedSubmittal(item)).length +
       rfis.filter((item) => item.response_due === currentDate && !isClosedRfi(item)).length,
     [currentDate, submittals, rfis]
   )
   const overdueCount = useMemo(
     () =>
-      submittals.filter((item) => item.due_date && item.due_date < currentDate && !isClosedSubmittal(item)).length +
+      submittals.filter((item) => item.review_due && item.review_due < currentDate && !isClosedSubmittal(item)).length +
       rfis.filter((item) => item.response_due && item.response_due < currentDate && !isClosedRfi(item)).length,
     [currentDate, submittals, rfis]
   )
   const quickActions = [
     { label: 'New Project', detail: 'Set up a new job', path: '/projects' },
-    { label: 'Log Submittal', detail: 'Register a review item', path: '/submittals' },
+    { label: 'Log Submittal', detail: 'Open the shop drawing register', path: '/submittals' },
     { label: 'Log RFI', detail: 'Track field questions', path: '/rfis' },
     { label: 'Review Risks', detail: 'Open late items', path: '/dashboard' },
   ] as const
@@ -140,8 +140,8 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
     },
   ] as const
   const urgentSubmittals = useMemo(
-    () => submittals.filter((item) => item.project_id).slice(0, 3),
-    [submittals]
+    () => (registerActivity.attention.length ? registerActivity.attention : submittals).slice(0, 3),
+    [registerActivity.attention, submittals]
   )
   const urgentRfis = useMemo(
     () => rfis.filter((item) => item.project_id).slice(0, 3),
@@ -151,12 +151,12 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
   const attentionItems = useMemo(
     () => [
       ...submittals
-        .filter((item) => item.project_id && item.due_date && item.due_date < currentDate && !isClosedSubmittal(item))
+        .filter((item) => item.alert)
         .map((item) => ({
           id: `submittal-${item.id}`,
           type: 'Submittal',
-          title: item.submittal_number || `Submittal ${item.id}`,
-          meta: item.subject || 'Pending review',
+          title: `${item.submittal_no} · ${item.project_name}`,
+          meta: item.alert,
           path: `/projects/${encodeURIComponent(String(item.project_id))}/submittals/${item.id}`,
         })),
       ...rfis
@@ -179,8 +179,8 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
           .map((item) => ({
             id: `submittal-${item.id}`,
             kind: 'Submittal',
-            title: item.submittal_number || `Submittal ${item.id}`,
-            subtitle: item.subject || item.project_id || 'No subject',
+            title: item.submittal_no,
+            subtitle: `${item.description} · ${item.project_name}`,
             path: `/projects/${encodeURIComponent(String(item.project_id))}/submittals/${item.id}`,
             order: item.id,
           })),
@@ -209,7 +209,7 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
       const entry = projectMap.get(item.project_id)
       if (!entry) return
       entry.openSubmittals += 1
-      if (item.due_date && item.due_date < currentDate) entry.late += 1
+      if (item.alert) entry.late += 1
     })
     rfis.forEach((item) => {
       if (!item.project_id || !projectMap.has(item.project_id) || isClosedRfi(item)) return
@@ -310,9 +310,10 @@ export default function DashboardPanel({ summary, projects, submittals, rfis, on
                   }}
                   className="block w-full rounded bg-white/5 px-2 py-1 text-left text-sm font-medium text-[#d9e2ff] hover:bg-white/10"
                 >
-                  {item.submittal_number || `Submittal ${item.id}`}
+                  {item.submittal_no}
+                  <span className="block truncate text-xs font-normal text-[#8f98bf]">{item.alert || item.description}</span>
                 </button>
-              )) : <EmptyState title="No submittals" description="Open Projects and add one to track review workflow." ctaLabel="Go to Submittals" onCta={() => onNavigate('/submittals')} />}
+              )) : <EmptyState title="No submissions yet" description="Log a submission in a project's register to track its review." ctaLabel="Go to Register" onCta={() => onNavigate('/submittals')} />}
             </div>
           </div>
           <div className="rounded-lg border border-white/5 bg-[#12172a] p-3">

@@ -3,14 +3,16 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 import DashboardPanel from '../components/workspace/DashboardPanel'
 import ContactsPanel from '../components/workspace/ContactsPanel'
+import MasterListPanel from '../components/workspace/MasterListPanel'
 import ProjectsPanel from '../components/workspace/ProjectsPanel'
 import RfisPanel from '../components/workspace/RfisPanel'
 import SubmittalsPanel from '../components/workspace/SubmittalsPanel'
 import UsersPanel from '../components/workspace/UsersPanel'
 import type { AuthUser } from '../types/auth'
-import type { DashboardSummary, ProjectRecord, RfiRecord, SubmittalRecord } from '../types/workspace'
+import type { RegisterActivity } from '../types/register'
+import type { DashboardSummary, ProjectRecord, RfiRecord } from '../types/workspace'
 
-type TabId = 'dashboard' | 'projects' | 'submittals' | 'rfis' | 'contacts' | 'users'
+type TabId = 'dashboard' | 'projects' | 'submittals' | 'rfis' | 'contacts' | 'users' | 'master'
 
 type WorkspacePageProps = {
   health: string
@@ -18,7 +20,7 @@ type WorkspacePageProps = {
   token: string
   summary: DashboardSummary
   projects: ProjectRecord[]
-  submittals: SubmittalRecord[]
+  registerActivity: RegisterActivity
   rfis: RfiRecord[]
   users: AuthUser[]
   message: string
@@ -34,8 +36,20 @@ type RouteState = {
   rfiId: number | null
 }
 
+const emptyRoute = { projectId: null, submittalId: null, rfiId: null }
+
 function parsePath(pathname: string): RouteState {
   const clean = pathname === '/' ? '/dashboard' : pathname
+  // Register: /submittals/:projectId and /submittals/:projectId/items/:itemId (submittalId is the register item id)
+  const registerMatch = clean.match(/^\/submittals\/([^/]+)(?:\/items\/(\d+))?$/)
+  if (registerMatch) {
+    return {
+      tab: 'submittals',
+      projectId: decodeURIComponent(registerMatch[1]),
+      submittalId: registerMatch[2] ? Number(registerMatch[2]) : null,
+      rfiId: null,
+    }
+  }
   const submittalMatch = clean.match(/^\/projects\/([^/]+)\/submittals\/(\d+)$/)
   if (submittalMatch) {
     return {
@@ -71,6 +85,7 @@ function parsePath(pathname: string): RouteState {
   if (clean === '/rfis') return { tab: 'rfis', projectId: null, submittalId: null, rfiId: null }
   if (clean === '/contacts') return { tab: 'contacts', projectId: null, submittalId: null, rfiId: null }
   if (clean === '/users') return { tab: 'users', projectId: null, submittalId: null, rfiId: null }
+  if (clean === '/master-list') return { tab: 'master', ...emptyRoute }
   return { tab: 'dashboard', projectId: null, submittalId: null, rfiId: null }
 }
 
@@ -80,7 +95,7 @@ export default function WorkspacePage({
   token,
   summary,
   projects,
-  submittals,
+  registerActivity,
   rfis,
   users,
   message,
@@ -138,14 +153,16 @@ export default function WorkspacePage({
     navigateTo(nextPath)
   }
 
-  const navItems: Array<[TabId, string]> = [
-    ['dashboard', 'Dashboard'],
-    ['projects', 'Projects'],
-    ['submittals', 'Submittals'],
-    ['rfis', 'RFIs'],
-    ['contacts', 'Contacts'],
-    ['users', 'Users'],
+  const navItems: Array<[TabId, string, string]> = [
+    ['dashboard', 'Dashboard', '/dashboard'],
+    ['projects', 'Projects', '/projects'],
+    ['submittals', 'Submittals', '/submittals'],
+    ['rfis', 'RFIs', '/rfis'],
+    ['contacts', 'Contacts', '/contacts'],
+    ['users', 'Users', '/users'],
+    ...(user.is_admin ? [['master', 'Master List', '/master-list'] as [TabId, string, string]] : []),
   ]
+  const refreshRegisterCounts = () => void refreshWorkspace(token)
   const menuToggleLabel = menuOpen ? 'Cerrar menu' : 'Abrir menu'
   const sidebarMarkers = [1, 2, 3, 4, 5, 6]
   const updateGlobalSearchParam = (nextValue: string) => {
@@ -167,14 +184,14 @@ export default function WorkspacePage({
           subtitle: project.project_id,
           path: `/projects/${encodeURIComponent(project.project_id)}`,
         })),
-      ...submittals
-        .filter((item) => `${item.submittal_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query))
+      ...registerActivity.items
+        .filter((item) => `${item.submittal_no} ${item.description} ${item.project_name}`.toLowerCase().includes(query))
         .map((item) => ({
           id: `submittal-${item.id}`,
           type: 'Submittal',
-          title: item.submittal_number || `Submittal ${item.id}`,
-          subtitle: item.subject || item.project_id || 'No subject',
-          path: item.project_id ? `/projects/${encodeURIComponent(item.project_id)}/submittals/${item.id}` : '/submittals',
+          title: item.submittal_no,
+          subtitle: `${item.description} · ${item.project_name}`,
+          path: `/submittals/${encodeURIComponent(item.project_id)}/items/${item.id}`,
         })),
       ...rfis
         .filter((item) => `${item.rfi_number || ''} ${item.subject || ''} ${item.project_id || ''}`.toLowerCase().includes(query))
@@ -186,7 +203,7 @@ export default function WorkspacePage({
           path: item.project_id ? `/projects/${encodeURIComponent(item.project_id)}/rfis/${item.id}` : '/rfis',
         })),
     ].slice(0, 8)
-  }, [workspaceSearch, projects, submittals, rfis])
+  }, [workspaceSearch, projects, registerActivity.items, rfis])
 
   return (
     <div className="neo-dashboard min-h-screen bg-[#151823] px-3 py-5 md:px-8 md:py-6">
@@ -249,10 +266,10 @@ export default function WorkspacePage({
             <p className="mt-1 text-sm font-semibold text-[#dbe2ff]">Project Management</p>
           </div>
           <nav className="space-y-2">
-            {navItems.map(([id, label]) => (
+            {navItems.map(([id, label, path]) => (
               <button
                 key={id}
-                onClick={() => navigate(`/${id}`)}
+                onClick={() => navigate(path)}
                 className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
                   route.tab === id ? 'bg-[#b9f5eb] font-semibold text-[#0f172a]' : 'text-[#8a92b2] hover:bg-white/5 hover:text-[#dbe2ff]'
                 }`}
@@ -273,7 +290,7 @@ export default function WorkspacePage({
         </aside>
         {menuOpen ? <button type="button" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-30 bg-black/35 md:hidden" aria-label="Close menu overlay" /> : null}
 
-        <main className="rounded-2xl bg-[#101426] p-4 md:p-5">
+        <main className="min-w-0 rounded-2xl bg-[#101426] p-4 md:p-5">
           <header className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/5 bg-[#1a1f35] p-3">
             <button
               type="button"
@@ -342,13 +359,12 @@ export default function WorkspacePage({
           ) : null}
 
           {route.tab === 'dashboard' ? (
-            <DashboardPanel summary={summary} projects={projects} submittals={submittals} rfis={rfis} onNavigate={navigate} />
+            <DashboardPanel summary={summary} projects={projects} registerActivity={registerActivity} rfis={rfis} onNavigate={navigate} />
           ) : null}
           {route.tab === 'projects' ? (
             <ProjectsPanel
               token={token}
               projects={projects}
-              submittals={submittals}
               rfis={rfis}
               routeProjectId={route.projectId}
               routeSubmittalId={route.submittalId}
@@ -356,10 +372,19 @@ export default function WorkspacePage({
               onNavigate={navigate}
               setMessage={setMessage}
               refreshWorkspace={refreshWorkspace}
+              onRegisterChanged={refreshRegisterCounts}
             />
           ) : null}
           {route.tab === 'submittals' ? (
-            <SubmittalsPanel token={token} projects={projects} submittals={submittals} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
+            <SubmittalsPanel
+              token={token}
+              projects={projects}
+              routeProjectId={route.projectId}
+              routeItemId={route.submittalId}
+              onNavigate={navigate}
+              setMessage={setMessage}
+              onChanged={refreshRegisterCounts}
+            />
           ) : null}
           {route.tab === 'rfis' ? (
             <RfisPanel token={token} projects={projects} rfis={rfis} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
@@ -367,7 +392,10 @@ export default function WorkspacePage({
           {route.tab === 'contacts' ? (
             <ContactsPanel token={token} setMessage={setMessage} />
           ) : null}
-          {route.tab === 'users' ? <UsersPanel users={users} /> : null}
+          {route.tab === 'users' ? (
+            <UsersPanel token={token} users={users} currentUser={user} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
+          ) : null}
+          {route.tab === 'master' ? <MasterListPanel token={token} isAdmin={Boolean(user.is_admin)} setMessage={setMessage} /> : null}
         </main>
       </div>
     </div>

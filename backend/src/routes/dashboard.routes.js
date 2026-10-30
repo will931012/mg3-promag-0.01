@@ -1,5 +1,7 @@
 import { Router } from "express";
 import pool from "../db/pool.js";
+import { loadComputedItems } from "../services/register-repository.js";
+import { summarizeRegister } from "../services/register-status.js";
 
 const router = Router();
 
@@ -8,32 +10,6 @@ WITH project_counts AS (
   SELECT COUNT(*)::int AS active_projects
   FROM product_list
   WHERE COALESCE(NULLIF(TRIM(status), ''), 'active') !~* '^(done|completed|closed|cancelled)$'
-),
-submittal_base AS (
-  SELECT
-    due_date,
-    COALESCE(
-      NULLIF(TRIM(lifecycle_status), ''),
-      CASE
-        WHEN COALESCE(NULLIF(TRIM(overall_status), ''), NULLIF(TRIM(approval_status), ''), 'open')
-          ~* '^(approved|closed|complete|completed|resolved)$'
-          THEN 'closed'
-        ELSE 'opened'
-      END
-    ) AS lifecycle_status_text
-  FROM submittal_tracker
-),
-submittal_counts AS (
-  SELECT
-    COUNT(*) FILTER (
-      WHERE lifecycle_status_text = 'opened'
-    )::int AS submittals_open,
-    COUNT(*) FILTER (
-      WHERE lifecycle_status_text = 'opened'
-        AND due_date IS NOT NULL
-        AND due_date < CURRENT_DATE
-    )::int AS submittals_late
-  FROM submittal_base
 ),
 rfi_base AS (
   SELECT
@@ -63,27 +39,25 @@ rfi_counts AS (
 )
 SELECT
   p.active_projects,
-  s.submittals_open,
-  s.submittals_late,
   r.rfis_open,
   r.rfis_overdue_open
 FROM project_counts p
-CROSS JOIN submittal_counts s
 CROSS JOIN rfi_counts r;
 `;
 
 router.get("/summary", async (_req, res) => {
   try {
-    const { rows } = await pool.query(summarySql);
-    const summary = rows[0] ?? {
-      active_projects: 0,
-      submittals_open: 0,
-      submittals_late: 0,
-      rfis_open: 0,
-      rfis_overdue_open: 0
-    };
+    const [{ rows }, registerItems] = await Promise.all([pool.query(summarySql), loadComputedItems({ inUseOnly: true })]);
+    const { submittals_open, submittals_late } = summarizeRegister(registerItems);
 
-    res.json(summary);
+    res.json({
+      active_projects: 0,
+      rfis_open: 0,
+      rfis_overdue_open: 0,
+      ...rows[0],
+      submittals_open,
+      submittals_late
+    });
   } catch (error) {
     if (error?.code === "42P01") {
       return res.json({

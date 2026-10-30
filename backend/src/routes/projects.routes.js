@@ -1,5 +1,6 @@
 import { Router } from "express";
 import pool from "../db/pool.js";
+import { copyMasterItemsToProject } from "../db/submittal-register-schema.js";
 
 const router = Router();
 
@@ -80,9 +81,11 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ detail: "project_name is required." });
   }
 
+  const client = await pool.connect();
   try {
     const project_id = await generateProjectId(project_name);
-    const { rows } = await pool.query(
+    await client.query("BEGIN");
+    const { rows } = await client.query(
       `INSERT INTO product_list (
         project_id, project_name, address, image_url, developer, aor, eor, end_date, status, priority, notes
       )
@@ -90,10 +93,16 @@ router.post("/", async (req, res) => {
       RETURNING *`,
       [project_id, project_name, address, image_url, developer, aor, eor, end_date, status, priority, notes]
     );
+    // Every project starts with the full shop drawing register, all items in use.
+    await copyMasterItemsToProject(client, project_id);
+    await client.query("COMMIT");
     return res.status(201).json(rows[0]);
   } catch (error) {
+    await client.query("ROLLBACK");
     if (error?.code === "23505") return res.status(409).json({ detail: "Project ID already exists." });
     return res.status(500).json({ detail: "Failed to create project." });
+  } finally {
+    client.release();
   }
 });
 

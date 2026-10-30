@@ -8,7 +8,9 @@
     "scripts":  {
                     "start":  "node src/server.js",
                     "dev":  "nodemon src/server.js",
+                    "test":  "node --test",
                     "db:reset":  "node src/db/reset.js",
+                    "db:setup":  "npm run db:create:users && npm run db:create:product_list && npm run db:create:submittal_tracker && npm run db:create:rfi_tracker && npm run db:create:contractors && npm run db:create:aors && npm run db:create:eors && npm run db:create:subcontractors && npm run db:seed:user",
                     "db:drop":  "node src/db/drop-all.js",
                     "db:create:users":  "node src/db/create-users-table.js",
                     "db:create:aors":  "node src/db/create-aors-table.js",

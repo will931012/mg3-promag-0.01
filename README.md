@@ -1,69 +1,90 @@
 # ProMag (MG3)
 
-Construction project management platform using:
-- Frontend: React + TypeScript (Vite)
-- Backend: Django + Django REST Framework
-- Database: PostgreSQL (local install)
+Construction project management for MG3 Developer Group: projects, the shop drawing register (submittals), RFIs and contacts.
 
-## Project structure
-- `frontend/` React app
-- `backend/` Django API
+- Frontend: React + TypeScript (Vite, Tailwind) in `frontend/`, deployed on Vercel
+- Backend: Node.js + Express in `backend/`, deployed on Railway
+- Database: PostgreSQL
 
-## 1) Install and start PostgreSQL locally
-Create a database and user (example values used by this project):
+## Local setup
+
+### 1. Database
+
+Install PostgreSQL and create an empty database (the default name is `promag-db`):
 
 ```sql
-CREATE DATABASE promag;
-CREATE USER promag_user WITH PASSWORD 'promag_pass';
-GRANT ALL PRIVILEGES ON DATABASE promag TO promag_user;
+CREATE DATABASE "promag-db";
 ```
 
-Make sure PostgreSQL is running on:
-- Host: `127.0.0.1`
-- Port: `5432`
+### 2. Backend
 
-## 2) Backend setup
 ```bash
 cd backend
-python -m venv .venv
-
-# activate virtual environment
-# PowerShell:
-.\.venv\Scripts\Activate.ps1
-# Bash/Git Bash:
-source .venv/Scripts/activate
-
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-
-# copy env file
-# PowerShell:
-Copy-Item .env.example .env
-# Bash/Git Bash:
-cp .env.example .env
-
-python manage.py migrate
-python manage.py createsuperuser
-python manage.py runserver
+npm install
+cp .env.example .env      # PowerShell: Copy-Item .env.example .env
 ```
 
-API health: `http://127.0.0.1:8000/api/health/`
+Edit `backend/.env` with your database connection (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`) and the admin login to create (`SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD`). Then:
 
-## 3) Frontend setup
+```bash
+npm run db:setup   # creates every table and the admin user
+npm run dev        # API on http://127.0.0.1:4000/api
+```
+
+On startup the server also creates the shop drawing register tables, loads the master submittal list and copies it into any project that doesn't have a register yet. Check it is up at `http://127.0.0.1:4000/api/health`.
+
+### 3. Frontend
+
 ```bash
 cd frontend
 npm install
-npm run dev
+cp .env.example .env      # points the app at http://127.0.0.1:4000/api
+npm run dev               # http://localhost:5173
 ```
-App: `http://127.0.0.1:5173`
 
-## Authentication
-- Login endpoint: `POST /api/auth/login/`
-- Current user endpoint: `GET /api/auth/me/`
-- Logout endpoint: `POST /api/auth/logout/`
-- Projects endpoint requires authentication token.
+Log in with the admin username and password from `backend/.env`.
 
-Use your Django superuser credentials in the ProMag login screen.
+## Environment variables
 
-## Env vars
-`backend/.env` defaults are already set for local PostgreSQL. Change them if your local DB credentials differ.
+Backend (`backend/.env`):
+
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | API port (default `4000`) |
+| `CORS_ORIGIN` | Allowed frontend origins, comma-separated; `*` wildcards allowed |
+| `DATABASE_URL` | Full connection string; used instead of the `DB_*` values when set (Railway) |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Database connection |
+| `DB_SSL` | `true` to connect over SSL (default on when `DATABASE_URL` is set) |
+| `SEED_ADMIN_*` | Login created by `npm run db:seed:user` |
+| `APP_TIMEZONE` | Calendar used for "today" in due dates and alerts (default `America/New_York`) |
+
+Frontend (`frontend/.env`): `VITE_API_BASE`, the API base URL.
+
+## Shop drawing register
+
+Submittals are tracked with the register from `Shop Drawing Log.xlsx`:
+
+- **Master list**: 277 standard submittals by CSI section (`backend/src/data/submittal-master-items.json`, loaded once into the database). Admins edit it from the Master List page. Changes apply to projects created afterwards; new items are added to existing projects switched off.
+- **Project register**: every project gets a copy of the master list with all items in use. Items that don't apply are unticked rather than deleted. A project can add its own items.
+- **Submission log**: each submission (Rev 0, Rev 1, ...) records when it was received from the subcontractor, sent to the reviewer, returned with an action code and returned to the subcontractor.
+- **Calculated columns**: status, ball in court, days with the ball, review due date (review period per project, 14 days by default), "submit by" for long-lead items and alerts. The rules follow the spreadsheet's formulas and live in `backend/src/services/register-status.js`.
+
+The first user account is made an admin automatically; admins can make other users admin from the Users page.
+
+Submittals from the earlier flat tracker (`submittal_tracker` table) are copied into the register as log entries on startup. The old table is left in place.
+
+## Tests
+
+```bash
+cd backend
+npm test
+```
+
+## Database scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run db:setup` | Create all tables and the admin user (safe to re-run) |
+| `npm run db:create:<table>` | Create one table |
+| `npm run db:seed:user` | Create or update the admin user from `SEED_ADMIN_*` |
+| `npm run db:drop` | Drop all tables |
