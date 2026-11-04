@@ -18,7 +18,7 @@ All endpoints except health and login require an `Authorization: Token <token>` 
 - `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`
 - `GET /api/auth/users`, `PATCH /api/auth/users/:id/admin` (admin)
 - `GET /api/dashboard/summary`
-- `/api/projects`, `/api/rfis`, `/api/aors`, `/api/eors`, `/api/contractors`, `/api/subcontractors`
+- `/api/projects`, `/api/rfis`, `/api/contacts` (contacts directory and roles), `/api/project-contacts/:projectId`
 - Shop drawing register, under `/api/register`:
   - `GET /meta`: reviewers, action codes, disciplines, types
   - `GET /projects/:projectId`: a project's register with calculated columns and log

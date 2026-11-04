@@ -1,12 +1,21 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-import { EOR_TYPES } from '../../app/eorTypes'
-import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
 import { downloadCsv, downloadExcelHtml, sortRecords } from '../../app/tableUtils'
-import { createSubcontractor, createRfi, deleteRfi, fetchSubcontractors, updateRfi } from '../../services/workspaceService'
-import type { ProjectRecord, SubcontractorRecord, RfiRecord } from '../../types/workspace'
+import { createRfi, deleteRfi, updateRfi } from '../../services/workspaceService'
+import { createDirectoryContact, fetchDirectoryContacts } from '../../services/contactsService'
+import type { DirectoryContact } from '../../services/contactsService'
+import type { ProjectRecord, RfiRecord } from '../../types/workspace'
+
+type SubcontractorOption = { id: number; name: string }
+
+// Subcontractors come from the contacts directory (general contractor and subcontractors), one per company.
+const toSubcontractorOptions = (contacts: DirectoryContact[]): SubcontractorOption[] =>
+  contacts
+    .filter((item) => item.category === 'contractors' && item.company)
+    .map((item) => ({ id: item.id, name: item.company }))
+    .filter((item, index, list) => list.findIndex((other) => other.name === item.name) === index)
 import EmptyState from '../common/EmptyState'
 import PrimaryButton from '../common/PrimaryButton'
 import SectionHeader from '../common/SectionHeader'
@@ -105,11 +114,11 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   const [showForm, setShowForm] = useState(false)
   const [projectSearch, setProjectSearch] = useState('')
   const [showProjectSuggestions, setShowProjectSuggestions] = useState(false)
-  const [subcontractors, setSubcontractors] = useState<SubcontractorRecord[]>([])
+  const [subcontractors, setSubcontractors] = useState<SubcontractorOption[]>([])
   const [selectedProjectEorOption, setSelectedProjectEorOption] = useState('')
   const [sentToSubcontractorInput, setSentToSubcontractorInput] = useState('')
   const [showSubcontractorSuggestions, setShowSubcontractorSuggestions] = useState(false)
-  const [selectedEorType, setSelectedEorType] = useState<EorType>('Civil EOR')
+  const [selectedEorType, setSelectedEorType] = useState('')
   const [showSubcontractorModal, setShowSubcontractorModal] = useState(false)
   const [newSubcontractorName, setNewSubcontractorName] = useState('')
   const [descriptionInput, setDescriptionInput] = useState('')
@@ -146,15 +155,18 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
         const [rawType, ...rest] = item.split(':')
         return {
           raw: item,
-          type: rawType?.trim() as EorType,
+          type: rawType?.trim() ?? '',
           name: rest.join(':').trim(),
         }
       }),
     [selectedProject]
   )
+  // EOR roles used on the selected project, e.g. "Structural Engineer" (older projects: "Civil EOR").
+  const eorTypeOptions = useMemo(() => Array.from(new Set(projectEorOptions.map((item) => item.type).filter(Boolean))), [projectEorOptions])
+  const activeEorType = eorTypeOptions.includes(selectedEorType) ? selectedEorType : eorTypeOptions[0] ?? ''
   const filteredProjectEorOptions = useMemo(
-    () => projectEorOptions.filter((item) => item.type === selectedEorType),
-    [projectEorOptions, selectedEorType]
+    () => projectEorOptions.filter((item) => item.type === activeEorType),
+    [projectEorOptions, activeEorType]
   )
   const sortedSubcontractors = useMemo(() => [...subcontractors].sort((a, b) => a.name.localeCompare(b.name)), [subcontractors])
   const filteredSubcontractors = useMemo(() => {
@@ -264,9 +276,9 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   useEffect(() => {
     let mounted = true
     const loadLists = async () => {
-      const nextSubcontractors = await fetchSubcontractors(token)
+      const contacts = await fetchDirectoryContacts(token)
       if (!mounted) return
-      setSubcontractors(nextSubcontractors)
+      setSubcontractors(toSubcontractorOptions(contacts))
     }
     loadLists()
     return () => { mounted = false }
@@ -275,16 +287,16 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   const handleCreateSubcontractor = async () => {
     const name = newSubcontractorName.trim()
     if (!name) return setMessage('Subcontractor name is required.')
-    const res = await createSubcontractor(token, { name })
-    const createdSubcontractor = res.data
-    if (!res.ok || !createdSubcontractor) return setMessage('Failed to create subcontractor.')
+    const res = await createDirectoryContact(token, { category: 'contractors', role: '', company: name, contact: '', email: '', phone: '', notes: '' })
+    if (!res.ok || !res.data) return setMessage('Failed to add the subcontractor to Contacts.')
+    const createdSubcontractor = { id: res.data.id, name }
     const nextSubcontractors = [...subcontractors, createdSubcontractor].sort((a, b) => a.name.localeCompare(b.name))
     setSubcontractors(nextSubcontractors)
     setSentToSubcontractorInput(createdSubcontractor.name)
     setForm((p) => ({ ...p, sent_to_subcontractor: createdSubcontractor.name }))
     setNewSubcontractorName('')
     setShowSubcontractorModal(false)
-    setMessage('Subcontractor created.')
+    setMessage('Subcontractor added to Contacts.')
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -320,7 +332,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
     setSelectedProjectEorOption('')
     setSentToSubcontractorInput('')
     setDescriptionInput('')
-    setSelectedEorType('Civil EOR')
+    setSelectedEorType('')
     setShowForm(false)
     await refreshWorkspace(token)
   }
@@ -406,7 +418,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
                 setSelectedProjectEorOption('')
                 setSentToSubcontractorInput('')
                 setDescriptionInput('')
-                setSelectedEorType('Civil EOR')
+                setSelectedEorType('')
                 setShowForm(true)
               }}
             >
@@ -546,11 +558,12 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
           <div className="mt-3">
             <label className="text-xs text-slate-600">EOR</label>
             <select
-              value={selectedEorType}
-              onChange={(e) => setSelectedEorType(e.target.value as EorType)}
+              value={activeEorType}
+              onChange={(e) => setSelectedEorType(e.target.value)}
               className="mt-1 w-full rounded border px-2 py-2"
             >
-              {EOR_TYPES.map((type) => (
+              {eorTypeOptions.length === 0 ? <option value="">No EOR on this project</option> : null}
+              {eorTypeOptions.map((type) => (
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
@@ -649,7 +662,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
                 onClick={() => setShowSubcontractorModal(true)}
                 className="rounded bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
               >
-                Add Subcontractor to DB
+                Add Subcontractor to Contacts
               </button>
             </div>
             {form.sent_to_subcontractor ? (
@@ -711,7 +724,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
                   setSelectedProjectEorOption('')
                   setSentToSubcontractorInput('')
                   setDescriptionInput('')
-                  setSelectedEorType('Civil EOR')
+                  setSelectedEorType('')
                 }}
                 className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold"
               >

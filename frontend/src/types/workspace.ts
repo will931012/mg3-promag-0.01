@@ -1,5 +1,3 @@
-import type { EorType } from '../app/eorTypes'
-
 export type DashboardSummary = {
   active_projects: number
   submittals_open: number
@@ -20,27 +18,6 @@ export type ProjectRecord = {
   status: string | null
   priority: string | null
   notes: string | null
-}
-
-export type AorRecord = {
-  id: number
-  name: string
-}
-
-export type EorRecord = {
-  id: number
-  type: EorType
-  name: string
-}
-
-export type SubcontractorRecord = {
-  id: number
-  name: string
-}
-
-export type ContractorRecord = {
-  id: number
-  name: string
 }
 
 export type RfiRecord = {

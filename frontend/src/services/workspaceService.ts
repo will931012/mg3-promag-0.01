@@ -1,7 +1,6 @@
 import { requestJson } from './http'
-import type { EorType } from '../app/eorTypes'
 import type { AuthUser } from '../types/auth'
-import type { AorRecord, ContractorRecord, DashboardSummary, EorRecord, ProjectRecord, RfiRecord, SubcontractorRecord } from '../types/workspace'
+import type { DashboardSummary, ProjectRecord, RfiRecord } from '../types/workspace'
 
 const emptySummary: DashboardSummary = {
   active_projects: 0,
@@ -31,75 +30,6 @@ export async function updateProject(token: string, projectId: string, payload: O
 
 export async function deleteProject(token: string, projectId: string) {
   return requestJson<null>(`/projects/${encodeURIComponent(projectId)}`, { token, method: 'DELETE' })
-}
-
-export async function fetchAors(token: string): Promise<AorRecord[]> {
-  const res = await requestJson<AorRecord[]>('/aors', { token })
-  return res.ok && Array.isArray(res.data) ? res.data : []
-}
-
-export async function createAor(token: string, payload: { name: string }) {
-  return requestJson<AorRecord>('/aors', { token, method: 'POST', body: payload })
-}
-
-export async function updateAor(token: string, id: number, payload: { name: string }) {
-  return requestJson<AorRecord>(`/aors/${id}`, { token, method: 'PUT', body: payload })
-}
-
-export async function deleteAor(token: string, id: number) {
-  return requestJson<null>(`/aors/${id}`, { token, method: 'DELETE' })
-}
-
-export async function fetchEors(token: string, type?: EorType): Promise<EorRecord[]> {
-  const query = type ? `?type=${encodeURIComponent(type)}` : ''
-  const res = await requestJson<EorRecord[]>(`/eors${query}`, { token })
-  return res.ok && Array.isArray(res.data) ? res.data : []
-}
-
-export async function createEor(token: string, payload: { type: EorType; name: string }) {
-  return requestJson<EorRecord>('/eors', { token, method: 'POST', body: payload })
-}
-
-export async function updateEor(token: string, id: number, payload: { type: EorType; name: string }) {
-  return requestJson<EorRecord>(`/eors/${id}`, { token, method: 'PUT', body: payload })
-}
-
-export async function deleteEor(token: string, id: number) {
-  return requestJson<null>(`/eors/${id}`, { token, method: 'DELETE' })
-}
-
-export async function fetchSubcontractors(token: string): Promise<SubcontractorRecord[]> {
-  const res = await requestJson<SubcontractorRecord[]>('/subcontractors', { token })
-  return res.ok && Array.isArray(res.data) ? res.data : []
-}
-
-export async function createSubcontractor(token: string, payload: { name: string }) {
-  return requestJson<SubcontractorRecord>('/subcontractors', { token, method: 'POST', body: payload })
-}
-
-export async function updateSubcontractor(token: string, id: number, payload: { name: string }) {
-  return requestJson<SubcontractorRecord>(`/subcontractors/${id}`, { token, method: 'PUT', body: payload })
-}
-
-export async function deleteSubcontractor(token: string, id: number) {
-  return requestJson<null>(`/subcontractors/${id}`, { token, method: 'DELETE' })
-}
-
-export async function fetchContractors(token: string): Promise<ContractorRecord[]> {
-  const res = await requestJson<ContractorRecord[]>('/contractors', { token })
-  return res.ok && Array.isArray(res.data) ? res.data : []
-}
-
-export async function createContractor(token: string, payload: { name: string }) {
-  return requestJson<ContractorRecord>('/contractors', { token, method: 'POST', body: payload })
-}
-
-export async function updateContractor(token: string, id: number, payload: { name: string }) {
-  return requestJson<ContractorRecord>(`/contractors/${id}`, { token, method: 'PUT', body: payload })
-}
-
-export async function deleteContractor(token: string, id: number) {
-  return requestJson<null>(`/contractors/${id}`, { token, method: 'DELETE' })
 }
 
 export async function fetchRfis(token: string): Promise<RfiRecord[]> {

@@ -3,11 +3,6 @@ import { ensureSubmittalRegisterSchema } from "./submittal-register-schema.js";
 import { ensureContactsSchema } from "./contacts-schema.js";
 
 const ensureRuntimeSchemaSql = `
-CREATE TABLE IF NOT EXISTS contractors (
-  id BIGSERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL UNIQUE
-);
-
 ALTER TABLE product_list
 ADD COLUMN IF NOT EXISTS image_url TEXT;
 

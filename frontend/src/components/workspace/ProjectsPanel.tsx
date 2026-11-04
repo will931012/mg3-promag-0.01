@@ -1,7 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-import { EOR_TYPES } from '../../app/eorTypes'
-import type { EorType } from '../../app/eorTypes'
 import { toNullableString } from '../../app/formUtils'
 import { downloadCsv, downloadExcelHtml, sortRecords } from '../../app/tableUtils'
 import Breadcrumbs from '../common/Breadcrumbs'
@@ -10,18 +8,16 @@ import PrimaryButton from '../common/PrimaryButton'
 import SectionHeader from '../common/SectionHeader'
 import StatusBadge from '../common/StatusBadge'
 import {
-  createAor,
-  createEor,
   createProject,
   deleteProject,
-  fetchAors,
-  fetchEors,
   updateProject,
   updateRfi,
 } from '../../services/workspaceService'
+import { createDirectoryContact, fetchContactRoles, fetchDirectoryContacts } from '../../services/contactsService'
+import type { DirectoryContact } from '../../services/contactsService'
 import ProjectContacts from '../project/ProjectContacts'
 import RegisterView from '../register/RegisterView'
-import type { AorRecord, EorRecord, ProjectRecord, RfiRecord } from '../../types/workspace'
+import type { ProjectRecord, RfiRecord } from '../../types/workspace'
 
 type ProjectsPanelProps = {
   token: string
@@ -37,7 +33,20 @@ type ProjectsPanelProps = {
 }
 
 type ProjectForm = Omit<ProjectRecord, 'project_id'>
-const defaultEorType: EorType = 'Civil EOR'
+// AOR and EOR options come from the contacts directory (design team). EORs are stored as "Role: Company".
+const AOR_ROLE = 'Architect'
+const NOT_EOR_ROLES = new Set([AOR_ROLE, 'Owner'])
+const defaultEorType = 'Structural Engineer'
+
+// Company names in the directory for a design-team role, one entry per company.
+function companiesFor(directory: DirectoryContact[], role: string, input: string) {
+  const query = input.trim().toLowerCase()
+  if (!query) return []
+  const names = directory
+    .filter((item) => item.category === 'design_team' && item.role === role && item.company.toLowerCase().includes(query))
+    .map((item) => item.company)
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b)).slice(0, 8).map((name) => ({ id: name, name }))
+}
 const MULTI_VALUE_SEPARATOR = ' | '
 const PROJECT_STATUS_OPTIONS = ['Preliminary', 'Under Construction', 'Substantial Completion'] as const
 const PROJECT_PRIORITY_OPTIONS = ['High', 'Medium', 'Low'] as const
@@ -156,18 +165,18 @@ export default function ProjectsPanel({
   const [rfiFilter, setRfiFilter] = useState<'opened' | 'closed'>('opened')
   const [selectedRfiDetailId, setSelectedRfiDetailId] = useState<number | null>(routeRfiId)
   const [rfiDraft, setRfiDraft] = useState<Omit<RfiRecord, 'id'> | null>(null)
-  const [aors, setAors] = useState<AorRecord[]>([])
-  const [eors, setEors] = useState<EorRecord[]>([])
+  const [directory, setDirectory] = useState<DirectoryContact[]>([])
+  const [eorTypes, setEorTypes] = useState<string[]>([defaultEorType])
   const [aorInput, setAorInput] = useState('')
   const [eorInput, setEorInput] = useState('')
   const [showAorSuggestions, setShowAorSuggestions] = useState(false)
   const [showEorSuggestions, setShowEorSuggestions] = useState(false)
-  const [selectedEorType, setSelectedEorType] = useState<EorType>(defaultEorType)
+  const [selectedEorType, setSelectedEorType] = useState<string>(defaultEorType)
   const [showAorModal, setShowAorModal] = useState(false)
   const [showEorModal, setShowEorModal] = useState(false)
   const [newAorName, setNewAorName] = useState('')
   const [newEorName, setNewEorName] = useState('')
-  const [newEorType, setNewEorType] = useState<EorType>(defaultEorType)
+  const [newEorType, setNewEorType] = useState<string>(defaultEorType)
   const [noteInput, setNoteInput] = useState('')
   const [addCreatedAorToProject, setAddCreatedAorToProject] = useState(true)
   const [addCreatedEorToProject, setAddCreatedEorToProject] = useState(true)
@@ -178,41 +187,21 @@ export default function ProjectsPanel({
   const [projectSortDirection, setProjectSortDirection] = useState<'asc' | 'desc'>('asc')
   const [projectPage, setProjectPage] = useState(1)
 
-  const loadAors = async () => {
-    const next = await fetchAors(token)
-    setAors(next)
-  }
-
-  const loadEors = async () => {
-    const next = await fetchEors(token)
-    setEors(next)
-  }
+  const loadDirectory = async () => setDirectory(await fetchDirectoryContacts(token))
 
   useEffect(() => {
     let mounted = true
-    const loadInitialLists = async () => {
-      const [nextAors, nextEors] = await Promise.all([fetchAors(token), fetchEors(token)])
+    void Promise.all([fetchDirectoryContacts(token), fetchContactRoles(token)]).then(([contacts, roles]) => {
       if (!mounted) return
-      setAors(nextAors)
-      setEors(nextEors)
-    }
-    loadInitialLists()
+      setDirectory(contacts)
+      const types = roles.design_team.map((role) => role.name).filter((name) => !NOT_EOR_ROLES.has(name))
+      if (types.length) setEorTypes(types)
+    })
     return () => { mounted = false }
   }, [token])
 
-  const sortedAors = useMemo(() => [...aors].sort((a, b) => a.name.localeCompare(b.name)), [aors])
-  const filteredAors = useMemo(() => {
-    const query = aorInput.trim().toLowerCase()
-    if (query.length < 1) return []
-    return sortedAors.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
-  }, [aorInput, sortedAors])
-
-  const filteredEors = useMemo(() => {
-    const byType = eors.filter((item) => item.type === selectedEorType)
-    const query = eorInput.trim().toLowerCase()
-    if (query.length < 1) return []
-    return byType.filter((item) => item.name.toLowerCase().includes(query)).slice(0, 8)
-  }, [eorInput, eors, selectedEorType])
+  const filteredAors = useMemo(() => companiesFor(directory, AOR_ROLE, aorInput), [aorInput, directory])
+  const filteredEors = useMemo(() => companiesFor(directory, selectedEorType, eorInput), [eorInput, directory, selectedEorType])
   const selectedProject = useMemo(
     () => projects.find((project) => project.project_id === selectedProjectId) ?? null,
     [projects, selectedProjectId]
@@ -334,38 +323,35 @@ export default function ProjectsPanel({
   const handleCreateAor = async () => {
     const name = newAorName.trim()
     if (!name) return setMessage('AOR name is required.')
-    const res = await createAor(token, { name })
-    if (!res.ok || !res.data) return setMessage('Failed to create AOR.')
-    const createdAor = res.data
-    await loadAors()
+    const res = await createDirectoryContact(token, { category: 'design_team', role: AOR_ROLE, company: name, contact: '', email: '', phone: '', notes: '' })
+    if (!res.ok || !res.data) return setMessage('Failed to add the AOR to Contacts.')
+    await loadDirectory()
     if (addCreatedAorToProject) {
-      setForm((prev) => ({ ...prev, aor: createdAor.name }))
-      setAorInput(createdAor.name)
+      setForm((prev) => ({ ...prev, aor: name }))
+      setAorInput(name)
     }
     setNewAorName('')
-    setAorInput('')
     setAddCreatedAorToProject(true)
     setShowAorModal(false)
-    setMessage('AOR created.')
+    setMessage('AOR added to Contacts.')
   }
 
   const handleCreateEor = async () => {
     const name = newEorName.trim()
     if (!name) return setMessage('EOR name is required.')
-    const res = await createEor(token, { type: newEorType, name })
-    if (!res.ok || !res.data) return setMessage('Failed to create EOR.')
-    const createdEor = res.data
-    await loadEors()
-    setSelectedEorType(createdEor.type)
+    const res = await createDirectoryContact(token, { category: 'design_team', role: newEorType, company: name, contact: '', email: '', phone: '', notes: '' })
+    if (!res.ok || !res.data) return setMessage('Failed to add the EOR to Contacts.')
+    await loadDirectory()
+    setSelectedEorType(newEorType)
     if (addCreatedEorToProject) {
-      setForm((prev) => ({ ...prev, eor: addUniqueMultiValue(prev.eor, `${createdEor.type}: ${createdEor.name}`) }))
+      setForm((prev) => ({ ...prev, eor: addUniqueMultiValue(prev.eor, `${newEorType}: ${name}`) }))
     }
     setNewEorName('')
     setEorInput('')
     setNewEorType(defaultEorType)
     setAddCreatedEorToProject(true)
     setShowEorModal(false)
-    setMessage('EOR created.')
+    setMessage('EOR added to Contacts.')
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -964,7 +950,7 @@ export default function ProjectsPanel({
                   onClick={() => setShowAorModal(true)}
                   className="mt-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
                 >
-                  Add AOR to DB
+                  Add AOR to Contacts
                 </button>
               </>
             ) : key === 'status' ? (
@@ -1030,10 +1016,10 @@ export default function ProjectsPanel({
               <>
                 <select
                   value={selectedEorType}
-                  onChange={(e) => setSelectedEorType(e.target.value as EorType)}
+                  onChange={(e) => setSelectedEorType(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
                 >
-                  {EOR_TYPES.map((typeItem) => (
+                  {eorTypes.map((typeItem) => (
                     <option key={typeItem} value={typeItem}>{typeItem}</option>
                   ))}
                 </select>
@@ -1090,7 +1076,7 @@ export default function ProjectsPanel({
                   onClick={() => setShowEorModal(true)}
                   className="mt-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
                 >
-                  Add EOR to DB
+                  Add EOR to Contacts
                 </button>
                 {form.eor ? (
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1308,13 +1294,13 @@ export default function ProjectsPanel({
           <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">Add EOR</h3>
             <label className="mt-3 block text-sm text-slate-700">
-              EOR Type
+              EOR role
               <select
                 value={newEorType}
-                onChange={(e) => setNewEorType(e.target.value as EorType)}
+                onChange={(e) => setNewEorType(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
               >
-                {EOR_TYPES.map((typeItem) => (
+                {eorTypes.map((typeItem) => (
                   <option key={typeItem} value={typeItem}>{typeItem}</option>
                 ))}
               </select>

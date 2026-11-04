@@ -4,7 +4,7 @@ import PrimaryButton from '../common/PrimaryButton'
 import StatusBadge from '../common/StatusBadge'
 import { alertTone, ballTone, formatDate, inputClass, statusTone } from './registerUi'
 import { createLogEntry, deleteLogEntry, deleteRegisterItem, responseDetail, updateLogEntry, updateRegisterItem } from '../../services/registerService'
-import { fetchSubcontractors } from '../../services/workspaceService'
+import { fetchDirectoryContacts } from '../../services/contactsService'
 import type { LogEntry, LogEntryFields, ProjectItemFields, RegisterItem, RegisterMeta } from '../../types/register'
 
 type RegisterItemDetailProps = {
@@ -62,7 +62,11 @@ export default function RegisterItemDetail({
   }, [item])
 
   useEffect(() => {
-    void fetchSubcontractors(token).then((records) => setSubcontractorNames(records.map((record) => record.name)))
+    void fetchDirectoryContacts(token).then((contacts) =>
+      setSubcontractorNames(
+        Array.from(new Set(contacts.filter((item) => item.category === 'contractors' && item.company).map((item) => item.company))).sort()
+      )
+    )
   }, [token])
 
   const changedFields = useMemo(() => {
