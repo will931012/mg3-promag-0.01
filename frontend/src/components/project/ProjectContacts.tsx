@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
+import Icon from '../common/Icon'
 import PrimaryButton from '../common/PrimaryButton'
+import ContactsWindow from './ContactsWindow'
 import { cellInputClass } from '../register/registerUi'
 import { fetchKnownContacts } from '../../services/contactsService'
 import type { KnownContact } from '../../services/contactsService'
@@ -16,8 +18,10 @@ type ProjectContactsProps = {
   token: string
   projectId: string
   setMessage: (message: string) => void
-  // On the Contacts page the sheet is shown on its own, always open.
+  // On the Contacts page (and inside the contacts window) the sheet is shown on its own, always open.
   sheetOnly?: boolean
+  // Shown in the contacts window title.
+  projectName?: string
 }
 
 const FIELDS: Array<{ key: keyof ProjectContactFields; label: string; type?: string }> = [
@@ -43,11 +47,13 @@ const pickFields = (row: ProjectContactRow): ProjectContactFields => ({
  * (design team / reviewers + general contractor and subcontractors) to edit. Every project has its own sheet;
  * the rows are the roles/trades stored in the database, and companies used on other projects are suggested.
  */
-export default function ProjectContacts({ token, projectId, setMessage, sheetOnly = false }: ProjectContactsProps) {
+export default function ProjectContacts({ token, projectId, setMessage, sheetOnly = false, projectName = '' }: ProjectContactsProps) {
   const [categories, setCategories] = useState<ProjectContactCategory[]>([])
   const [loading, setLoading] = useState(true)
-  const [toggledOpen, setOpen] = useState(false)
-  const open = sheetOnly || toggledOpen
+  // Outside the sheet view, the contacts open in a pop-up window; the strip reloads when it closes.
+  const [windowOpen, setWindowOpen] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+  const open = sheetOnly
   const [editing, setEditing] = useState<{ category: ContactCategoryKey; role: string } | null>(null)
   const [draft, setDraft] = useState<ProjectContactFields>(emptyFields)
   const [saving, setSaving] = useState(false)
@@ -92,7 +98,7 @@ export default function ProjectContacts({ token, projectId, setMessage, sheetOnl
     return () => {
       cancelled = true
     }
-  }, [token, projectId])
+  }, [token, projectId, reloadKey])
 
   const filled = useMemo(
     () => categories.flatMap((category) => category.rows.filter(isFilled).map((row) => ({ ...row, category: category.key }))),
@@ -154,15 +160,34 @@ export default function ProjectContacts({ token, projectId, setMessage, sheetOnl
         {loading ? <span className="text-sm text-slate-500">Loading…</span> : null}
         {!loading && filled.length === 0 ? <span className="text-sm text-slate-500">No contacts yet.</span> : null}
         {filled.map((row) => (
-          <span key={`${row.category}-${row.role}`} className="rounded-full border border-slate-200 bg-surface px-2.5 py-1 text-xs text-slate-700" title={[row.email, row.phone].filter(Boolean).join(' · ')}>
+          <button
+            key={`${row.category}-${row.role}`}
+            type="button"
+            onClick={() => setWindowOpen(true)}
+            className="rounded-full border border-slate-200 bg-surface px-2.5 py-1 text-xs text-slate-700 hover:border-brand-700"
+            title={[row.email, row.phone].filter(Boolean).join(' · ')}
+          >
             <span className="font-semibold text-slate-900">{row.role}:</span> {row.contact || row.company}
             {row.contact && row.company ? <span className="text-slate-500"> ({row.company})</span> : null}
-          </span>
+          </button>
         ))}
-        <button type="button" onClick={() => setOpen((prev) => !prev)} className="text-sm font-semibold text-brand-700 hover:underline">
-          {open ? 'Hide contact sheet' : 'Edit contacts'}
+        <button type="button" onClick={() => setWindowOpen(true)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline">
+          <Icon name="contacts" className="h-4 w-4" /> Open contacts
         </button>
       </div>
+
+      {windowOpen ? (
+        <ContactsWindow
+          token={token}
+          projectId={projectId}
+          projectName={projectName}
+          setMessage={setMessage}
+          onClose={() => {
+            setWindowOpen(false)
+            setReloadKey((key) => key + 1)
+          }}
+        />
+      ) : null}
 
       {open ? (
         <div className="mt-3 space-y-4">

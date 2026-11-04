@@ -620,7 +620,7 @@ export default function ProjectsPanel({
                   </div>
                 </div>
 
-                <ProjectContacts key={selectedProject.project_id} token={token} projectId={selectedProject.project_id} setMessage={setMessage} />
+                <ProjectContacts key={selectedProject.project_id} token={token} projectId={selectedProject.project_id} projectName={selectedProject.project_name} setMessage={setMessage} />
 
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
                   {(['submittals', 'rfis'] as const).map((view) => (

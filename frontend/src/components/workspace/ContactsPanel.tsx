@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import EmptyState from '../common/EmptyState'
 import SectionHeader from '../common/SectionHeader'
+import ContactsAgenda from '../project/ContactsAgenda'
 import ProjectContacts from '../project/ProjectContacts'
 import type { ProjectRecord } from '../../types/workspace'
 
@@ -14,6 +15,16 @@ type ContactsPanelProps = {
 }
 
 const LAST_PROJECT_KEY = 'promag_contacts_project'
+const VIEW_KEY = 'promag_contacts_view'
+type View = 'agenda' | 'sheet'
+
+function readView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'sheet' ? 'sheet' : 'agenda'
+  } catch {
+    return 'agenda'
+  }
+}
 const contactsPath = (projectId: string) => `/contacts/${encodeURIComponent(projectId)}`
 
 /**
@@ -22,6 +33,15 @@ const contactsPath = (projectId: string) => `/contacts/${encodeURIComponent(proj
  */
 export default function ContactsPanel({ token, projects, routeProjectId, onNavigate, setMessage }: ContactsPanelProps) {
   const project = projects.find((item) => item.project_id === routeProjectId) ?? null
+  const [view, setView] = useState<View>(readView)
+  const changeView = (next: View) => {
+    setView(next)
+    try {
+      localStorage.setItem(VIEW_KEY, next)
+    } catch {
+      // Only a preference.
+    }
+  }
 
   // Open the last project used (or the first one) when no project is in the URL.
   useEffect(() => {
@@ -52,6 +72,20 @@ export default function ContactsPanel({ token, projects, routeProjectId, onNavig
         subtitle="Each project has its own contact sheet. Companies used on other projects are suggested as you type."
         actions={
           projects.length ? (
+            <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-300 p-0.5" role="group" aria-label="View">
+              {([['agenda', 'Address book'], ['sheet', 'Sheet']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => changeView(key)}
+                  aria-pressed={view === key}
+                  className={`rounded-md px-3 py-1.5 text-sm font-semibold ${view === key ? 'bg-brand-700 text-white' : 'text-slate-700 hover:bg-hover'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <select
               value={project?.project_id ?? ''}
               onChange={(event) => onNavigate(contactsPath(event.target.value))}
@@ -63,6 +97,7 @@ export default function ContactsPanel({ token, projects, routeProjectId, onNavig
                 <option key={item.project_id} value={item.project_id}>{item.project_name}</option>
               ))}
             </select>
+            </div>
           ) : null
         }
       />
@@ -72,7 +107,11 @@ export default function ContactsPanel({ token, projects, routeProjectId, onNavig
         </div>
       ) : null}
       {project ? (
-        <ProjectContacts key={project.project_id} token={token} projectId={project.project_id} setMessage={setMessage} sheetOnly />
+        view === 'agenda' ? (
+          <ContactsAgenda key={project.project_id} token={token} projectId={project.project_id} setMessage={setMessage} />
+        ) : (
+          <ProjectContacts key={project.project_id} token={token} projectId={project.project_id} setMessage={setMessage} sheetOnly />
+        )
       ) : routeProjectId ? (
         <div className="mt-4">
           <EmptyState title="Project not found" description="Pick another project from the list." />

@@ -135,9 +135,24 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   )
   const filteredProjects = useMemo(() => {
     const query = projectSearch.trim().toLowerCase()
-    if (query.length < 1) return []
+    if (query.length < 1) return sortedProjects.slice(0, 20)
     return sortedProjects.filter((project) => project.project_name.toLowerCase().includes(query)).slice(0, 8)
   }, [projectSearch, sortedProjects])
+  // A typed name that matches one project (exactly, or as the only match) selects it, so the RFI never loses its project.
+  const findTypedProject = (text: string) => {
+    const query = text.trim().toLowerCase()
+    if (!query) return null
+    const exact = projects.find((project) => project.project_name.toLowerCase() === query)
+    if (exact) return exact
+    const matches = projects.filter((project) => project.project_name.toLowerCase().includes(query))
+    return matches.length === 1 ? matches[0] : null
+  }
+  const selectProject = (project: ProjectRecord) => {
+    setProjectSearch(project.project_name)
+    setForm((p) => ({ ...p, project_id: project.project_id, sent_to_aor: '', sent_to_eor: '' }))
+    setSelectedProjectEorOption('')
+    setShowProjectSuggestions(false)
+  }
   const selectedProject = useMemo(
     () => projects.find((project) => project.project_id === form.project_id) ?? null,
     [projects, form.project_id]
@@ -280,11 +295,15 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (Object.keys(formErrors).length > 0) {
-      return setMessage('Review the highlighted RFI fields before saving.')
+    const typedProject = form.project_id ? null : findTypedProject(projectSearch)
+    const projectId = form.project_id || typedProject?.project_id || ''
+    if (typedProject) selectProject(typedProject)
+    const errors = Object.entries(formErrors).filter(([field]) => !(field === 'project_id' && projectId))
+    if (errors.length > 0) {
+      return setMessage(`Can't save the RFI: ${errors.map(([, text]) => text).join(' ')}`)
     }
     const payload = {
-      project_id: toNullableString(form.project_id),
+      project_id: toNullableString(projectId),
       rfi_number: toNullableString(form.rfi_number),
       subject: toNullableString(form.subject),
       description: toNullableString(form.description),
@@ -303,7 +322,10 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
       notes: toNullableString(form.notes),
     }
     const res = editingId ? await updateRfi(token, editingId, payload) : await createRfi(token, payload)
-    if (!res.ok) return setMessage('Failed to save RFI.')
+    if (!res.ok) {
+      const detail = res.data && typeof res.data === 'object' && 'detail' in res.data ? String((res.data as { detail: unknown }).detail) : ''
+      return setMessage(detail || `Failed to save RFI (error ${res.status || 'network'}).`)
+    }
     setMessage(editingId ? 'RFI updated.' : 'RFI created.')
     setEditingId(null)
     setForm(emptyForm)
@@ -415,26 +437,32 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
               onFocus={() => setShowProjectSuggestions(true)}
               onBlur={() => setTimeout(() => setShowProjectSuggestions(false), 120)}
               onChange={(e) => {
-                setProjectSearch(e.target.value)
-                setForm((p) => ({ ...p, project_id: '', sent_to_aor: '', sent_to_eor: '' }))
+                const text = e.target.value
+                const exact = projects.find((project) => project.project_name.toLowerCase() === text.trim().toLowerCase())
+                setProjectSearch(text)
+                setForm((p) => ({ ...p, project_id: exact?.project_id ?? '', sent_to_aor: '', sent_to_eor: '' }))
                 setSelectedProjectEorOption('')
                 setShowProjectSuggestions(true)
               }}
-              placeholder="Type project name"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                const pick = findTypedProject(projectSearch) ?? filteredProjects[0]
+                if (pick) selectProject(pick)
+              }}
+              placeholder="Type or pick a project"
               className="w-full rounded border px-2 py-2"
             />
             {showProjectSuggestions ? (
               <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded border border-slate-200 bg-surface shadow-md">
-                {projectSearch.trim().length < 1 ? null : filteredProjects.length > 0 ? (
+                {filteredProjects.length > 0 ? (
                   filteredProjects.map((project) => (
                     <button
                       key={project.project_id}
                       type="button"
-                      onMouseDown={() => {
-                        setProjectSearch(project.project_name)
-                        setForm((p) => ({ ...p, project_id: project.project_id, sent_to_aor: '', sent_to_eor: '' }))
-                        setSelectedProjectEorOption('')
-                        setShowProjectSuggestions(false)
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        selectProject(project)
                       }}
                       className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                     >
@@ -447,7 +475,7 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
               </div>
             ) : null}
           </div>
-          {form.project_id ? <p className="mt-1 text-xs text-slate-500">Selected project</p> : null}
+          {form.project_id ? <p className="mt-1 text-xs text-emerald-700">✓ {projectNameById[form.project_id] ?? form.project_id}</p> : null}
           {formErrors.project_id ? <p className="mt-1 text-xs text-rose-600">{formErrors.project_id}</p> : null}
         </label>
         <label className="text-sm">RFI #
