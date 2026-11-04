@@ -4,18 +4,14 @@ import { useSearchParams } from 'react-router-dom'
 import { toNullableString } from '../../app/formUtils'
 import { downloadCsv, downloadExcelHtml, sortRecords } from '../../app/tableUtils'
 import { createRfi, deleteRfi, updateRfi } from '../../services/workspaceService'
-import { createDirectoryContact, fetchDirectoryContacts } from '../../services/contactsService'
-import type { DirectoryContact } from '../../services/contactsService'
+import { fetchKnownContacts, knownCompanies } from '../../services/contactsService'
 import type { ProjectRecord, RfiRecord } from '../../types/workspace'
 
 type SubcontractorOption = { id: number; name: string }
 
-// Subcontractors come from the contacts directory (general contractor and subcontractors), one per company.
-const toSubcontractorOptions = (contacts: DirectoryContact[]): SubcontractorOption[] =>
-  contacts
-    .filter((item) => item.category === 'contractors' && item.company)
-    .map((item) => ({ id: item.id, name: item.company }))
-    .filter((item, index, list) => list.findIndex((other) => other.name === item.name) === index)
+// Subcontractor suggestions: GC / subcontractor companies used on any project's contact sheet.
+const toSubcontractorOptions = (contacts: Awaited<ReturnType<typeof fetchKnownContacts>>): SubcontractorOption[] =>
+  knownCompanies(contacts, 'contractors').map((name, index) => ({ id: index, name }))
 import EmptyState from '../common/EmptyState'
 import PrimaryButton from '../common/PrimaryButton'
 import SectionHeader from '../common/SectionHeader'
@@ -119,8 +115,6 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   const [sentToSubcontractorInput, setSentToSubcontractorInput] = useState('')
   const [showSubcontractorSuggestions, setShowSubcontractorSuggestions] = useState(false)
   const [selectedEorType, setSelectedEorType] = useState('')
-  const [showSubcontractorModal, setShowSubcontractorModal] = useState(false)
-  const [newSubcontractorName, setNewSubcontractorName] = useState('')
   const [descriptionInput, setDescriptionInput] = useState('')
   const [listSearch, setListSearch] = useState('')
   const [listStatusFilter, setListStatusFilter] = useState<'all' | 'opened' | 'closed'>('all')
@@ -276,28 +270,13 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
   useEffect(() => {
     let mounted = true
     const loadLists = async () => {
-      const contacts = await fetchDirectoryContacts(token)
+      const contacts = await fetchKnownContacts(token)
       if (!mounted) return
       setSubcontractors(toSubcontractorOptions(contacts))
     }
     loadLists()
     return () => { mounted = false }
   }, [token])
-
-  const handleCreateSubcontractor = async () => {
-    const name = newSubcontractorName.trim()
-    if (!name) return setMessage('Subcontractor name is required.')
-    const res = await createDirectoryContact(token, { category: 'contractors', role: '', company: name, contact: '', email: '', phone: '', notes: '' })
-    if (!res.ok || !res.data) return setMessage('Failed to add the subcontractor to Contacts.')
-    const createdSubcontractor = { id: res.data.id, name }
-    const nextSubcontractors = [...subcontractors, createdSubcontractor].sort((a, b) => a.name.localeCompare(b.name))
-    setSubcontractors(nextSubcontractors)
-    setSentToSubcontractorInput(createdSubcontractor.name)
-    setForm((p) => ({ ...p, sent_to_subcontractor: createdSubcontractor.name }))
-    setNewSubcontractorName('')
-    setShowSubcontractorModal(false)
-    setMessage('Subcontractor added to Contacts.')
-  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -657,13 +636,6 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
               >
                 Add Subcontractor
               </button>
-              <button
-                type="button"
-                onClick={() => setShowSubcontractorModal(true)}
-                className="rounded bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
-              >
-                Add Subcontractor to Contacts
-              </button>
             </div>
             {form.sent_to_subcontractor ? (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -863,41 +835,6 @@ export default function RfisPanel({ token, projects, rfis, setMessage, refreshWo
         </div>
       </div>
 
-      {showSubcontractorModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Add Subcontractor</h3>
-            <label className="mt-3 block text-sm text-slate-700">
-              Subcontractor Name
-              <input
-                type="text"
-                value={newSubcontractorName}
-                onChange={(e) => setNewSubcontractorName(e.target.value)}
-                className="mt-1 w-full rounded border px-3 py-2"
-              />
-            </label>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={handleCreateSubcontractor}
-                className="rounded bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Save Subcontractor
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSubcontractorModal(false)
-                  setNewSubcontractorName('')
-                }}
-                className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </section>
   )
 }

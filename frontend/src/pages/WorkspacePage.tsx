@@ -57,6 +57,8 @@ function parsePath(pathname: string): RouteState {
       rfiId: null,
     }
   }
+  const contactsMatch = clean.match(/^\/contacts\/([^/]+)$/)
+  if (contactsMatch) return { tab: 'contacts', ...emptyRoute, projectId: decodeURIComponent(contactsMatch[1]) }
   const submittalMatch = clean.match(/^\/projects\/([^/]+)\/submittals\/(\d+)$/)
   if (submittalMatch) {
     return {
@@ -322,7 +324,7 @@ export default function WorkspacePage({
             <RfisPanel token={token} projects={projects} rfis={rfis} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />
           ) : null}
           {route.tab === 'contacts' ? (
-            <ContactsPanel token={token} setMessage={setMessage} />
+            <ContactsPanel token={token} projects={projects} routeProjectId={route.projectId} onNavigate={navigate} setMessage={setMessage} />
           ) : null}
           {route.tab === 'users' ? (
             <UsersPanel token={token} users={users} currentUser={user} setMessage={setMessage} refreshWorkspace={refreshWorkspace} />

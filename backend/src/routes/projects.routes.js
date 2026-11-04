@@ -1,6 +1,7 @@
 import { Router } from "express";
 import pool from "../db/pool.js";
 import { copyMasterItemsToProject } from "../db/submittal-register-schema.js";
+import { syncProjectDesignTeam } from "../db/contacts-schema.js";
 
 const router = Router();
 
@@ -95,6 +96,8 @@ router.post("/", async (req, res) => {
     );
     // Every project starts with the full shop drawing register, all items in use.
     await copyMasterItemsToProject(client, project_id);
+    // The AOR / EOR entered on the form fill the project's contact sheet.
+    await syncProjectDesignTeam(client, project_id, aor, eor);
     await client.query("COMMIT");
     return res.status(201).json(rows[0]);
   } catch (error) {
@@ -140,6 +143,7 @@ router.put("/:projectId", async (req, res) => {
     );
 
     if (!rows[0]) return res.status(404).json({ detail: "Project not found." });
+    await syncProjectDesignTeam(pool, projectId, aor, eor);
     return res.json(rows[0]);
   } catch {
     return res.status(500).json({ detail: "Failed to update project." });

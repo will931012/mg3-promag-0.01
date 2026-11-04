@@ -1,27 +1,20 @@
 import { requestJson } from './http'
-import type { ContactCategoryKey, ProjectContactFields } from './projectContactsService'
+import type { ContactCategoryKey } from './projectContactsService'
 
-// Contacts directory: same layout as the contacts sheet, roles stored in the database.
+// Shared parts of the per-project contact sheets: the roles/trades (rows of every sheet, stored in the
+// database) and the contacts already used on any project (suggested when filling in another one).
 
 export type ContactRole = { id: number; name: string }
 export type ContactRoles = Record<ContactCategoryKey, ContactRole[]>
 
-export type DirectoryContact = ProjectContactFields & {
+export type KnownContact = {
   id: number
   category: ContactCategoryKey
   role: string
-}
-
-export type DirectoryContactInput = Omit<DirectoryContact, 'id'>
-
-export const CONTACT_CATEGORY_TITLES: Record<ContactCategoryKey, string> = {
-  design_team: 'Design team / reviewers',
-  contractors: 'General contractor and subcontractors',
-}
-
-export const CONTACT_ROLE_LABELS: Record<ContactCategoryKey, string> = {
-  design_team: 'Role',
-  contractors: 'Discipline / trade',
+  company: string
+  contact: string
+  email: string
+  phone: string
 }
 
 export const emptyContactRoles: ContactRoles = { design_team: [], contractors: [] }
@@ -31,23 +24,13 @@ export async function fetchContactRoles(token: string): Promise<ContactRoles> {
   return res.ok && res.data ? res.data : emptyContactRoles
 }
 
-export async function deleteContactRole(token: string, id: number) {
-  return requestJson<ContactRoles>(`/contacts/roles/${id}`, { token, method: 'DELETE' })
-}
-
-export async function fetchDirectoryContacts(token: string): Promise<DirectoryContact[]> {
-  const res = await requestJson<DirectoryContact[]>('/contacts', { token })
+export async function fetchKnownContacts(token: string): Promise<KnownContact[]> {
+  const res = await requestJson<KnownContact[]>('/contacts/known', { token })
   return res.ok && Array.isArray(res.data) ? res.data : []
 }
 
-export async function createDirectoryContact(token: string, payload: DirectoryContactInput) {
-  return requestJson<DirectoryContact>('/contacts', { token, method: 'POST', body: payload })
-}
-
-export async function updateDirectoryContact(token: string, id: number, payload: DirectoryContactInput) {
-  return requestJson<DirectoryContact>(`/contacts/${id}`, { token, method: 'PUT', body: payload })
-}
-
-export async function deleteDirectoryContact(token: string, id: number) {
-  return requestJson<null>(`/contacts/${id}`, { token, method: 'DELETE' })
+/** Company names used on any project for a category (and role, when given), sorted and unique. */
+export function knownCompanies(contacts: KnownContact[], category: ContactCategoryKey, role?: string): string[] {
+  const names = contacts.filter((item) => item.category === category && item.company && (!role || item.role === role)).map((item) => item.company)
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
 }

@@ -2,8 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import PrimaryButton from '../common/PrimaryButton'
 import { cellInputClass } from '../register/registerUi'
-import { fetchDirectoryContacts } from '../../services/contactsService'
-import type { DirectoryContact } from '../../services/contactsService'
+import { fetchKnownContacts } from '../../services/contactsService'
+import type { KnownContact } from '../../services/contactsService'
 import { responseDetail } from '../../services/registerService'
 import {
   deleteProjectContact,
@@ -16,6 +16,8 @@ type ProjectContactsProps = {
   token: string
   projectId: string
   setMessage: (message: string) => void
+  // On the Contacts page the sheet is shown on its own, always open.
+  sheetOnly?: boolean
 }
 
 const FIELDS: Array<{ key: keyof ProjectContactFields; label: string; type?: string }> = [
@@ -38,38 +40,40 @@ const pickFields = (row: ProjectContactRow): ProjectContactFields => ({
 
 /**
  * Contacts for one project: a compact strip with the people already filled in, and the full sheet
- * (design team / reviewers + general contractor and subcontractors) to edit.
+ * (design team / reviewers + general contractor and subcontractors) to edit. Every project has its own sheet;
+ * the rows are the roles/trades stored in the database, and companies used on other projects are suggested.
  */
-export default function ProjectContacts({ token, projectId, setMessage }: ProjectContactsProps) {
+export default function ProjectContacts({ token, projectId, setMessage, sheetOnly = false }: ProjectContactsProps) {
   const [categories, setCategories] = useState<ProjectContactCategory[]>([])
   const [loading, setLoading] = useState(true)
-  const [open, setOpen] = useState(false)
+  const [toggledOpen, setOpen] = useState(false)
+  const open = sheetOnly || toggledOpen
   const [editing, setEditing] = useState<{ category: ContactCategoryKey; role: string } | null>(null)
   const [draft, setDraft] = useState<ProjectContactFields>(emptyFields)
   const [saving, setSaving] = useState(false)
   const [newRole, setNewRole] = useState<{ category: ContactCategoryKey; role: string } | null>(null)
 
-  const [directory, setDirectory] = useState<DirectoryContact[]>([])
+  const [known, setKnown] = useState<KnownContact[]>([])
 
   useEffect(() => {
     let cancelled = false
-    void fetchDirectoryContacts(token).then((rows) => {
-      if (!cancelled) setDirectory(rows)
+    void fetchKnownContacts(token).then((rows) => {
+      if (!cancelled) setKnown(rows)
     })
     return () => {
       cancelled = true
     }
   }, [token])
 
-  // Directory companies for a row: the same role first, then the rest of the group.
-  const directoryOptions = (category: ContactCategoryKey, role: string) => {
-    const inCategory = directory.filter((item) => item.category === category && item.company)
+  // Contacts used on other projects for a row: the same role first, otherwise the rest of the group.
+  const knownOptions = (category: ContactCategoryKey, role: string) => {
+    const inCategory = known.filter((item) => item.category === category && item.company)
     const sameRole = inCategory.filter((item) => item.role === role)
     return sameRole.length ? sameRole : inCategory
   }
 
   const setCompany = (category: ContactCategoryKey, role: string, company: string) => {
-    const match = directoryOptions(category, role).find((item) => item.company === company)
+    const match = knownOptions(category, role).find((item) => item.company === company)
     setDraft((prev) =>
       match && !prev.contact && !prev.email && !prev.phone
         ? { ...prev, company, contact: match.contact, email: match.email, phone: match.phone }
@@ -136,6 +140,7 @@ export default function ProjectContacts({ token, projectId, setMessage }: Projec
     if (!role) return
     const category = categories.find((item) => item.key === newRole.category)
     if (category?.rows.some((row) => row.role.toLowerCase() === role.toLowerCase())) return setMessage(`${role} is already on the list.`)
+    // Saved with the first contact; from then on the role is a row on every project's sheet.
     replaceRow(newRole.category, role, { id: null, role, custom: true, ...emptyFields })
     setEditing({ category: newRole.category, role })
     setDraft(emptyFields)
@@ -144,7 +149,7 @@ export default function ProjectContacts({ token, projectId, setMessage }: Projec
 
   return (
     <div className="mt-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={sheetOnly ? 'hidden' : 'flex flex-wrap items-center gap-2'}>
         <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Contacts</span>
         {loading ? <span className="text-sm text-slate-500">Loading…</span> : null}
         {!loading && filled.length === 0 ? <span className="text-sm text-slate-500">No contacts yet.</span> : null}
@@ -163,7 +168,7 @@ export default function ProjectContacts({ token, projectId, setMessage }: Projec
         <div className="mt-3 space-y-4">
           {editing ? (
             <datalist id="project-contact-companies">
-              {directoryOptions(editing.category, editing.role).map((item) => (
+              {knownOptions(editing.category, editing.role).map((item) => (
                 <option key={item.id} value={item.company}>{[item.contact, item.role].filter(Boolean).join(' · ')}</option>
               ))}
             </datalist>

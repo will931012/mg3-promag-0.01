@@ -1,10 +1,11 @@
 import { Router } from "express";
 import pool from "../db/pool.js";
 import { CONTACT_CATEGORIES, DEFAULT_CONTACT_COMPANIES } from "../constants/submittal-register.js";
-import { loadContactRoles } from "../db/contacts-schema.js";
+import { ensureRole, loadContactRoles } from "../db/contacts-schema.js";
 
 // Project contacts, laid out like the contacts sheet: every role/trade in contact_roles always shows as a row,
-// and only rows someone filled in are stored. Extra rows (a trade that isn't listed) can be added.
+// and only rows someone filled in are stored. A new role/trade typed here is added to contact_roles,
+// so it becomes a row on every project's sheet.
 
 const router = Router();
 
@@ -61,10 +62,10 @@ router.get("/:projectId", async (req, res) => {
 router.put("/:projectId", async (req, res) => {
   try {
     const category = asText(req.body?.category, 30);
-    const role = asText(req.body?.role, 120);
     if (!CONTACT_CATEGORIES[category]) return res.status(400).json({ detail: "Unknown contact category." });
-    if (!role) return res.status(400).json({ detail: "Role / trade is required." });
+    if (!asText(req.body?.role, 120)) return res.status(400).json({ detail: "Role / trade is required." });
     if (!(await projectExists(req.params.projectId))) return res.status(404).json({ detail: "Project not found." });
+    const role = await ensureRole(pool, category, asText(req.body?.role, 120));
 
     const values = CONTACT_FIELDS.map((field) => asText(req.body?.[field], field === "notes" ? 2000 : 255));
     const { rows } = await pool.query(

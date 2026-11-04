@@ -13,8 +13,8 @@ import {
   updateProject,
   updateRfi,
 } from '../../services/workspaceService'
-import { createDirectoryContact, fetchContactRoles, fetchDirectoryContacts } from '../../services/contactsService'
-import type { DirectoryContact } from '../../services/contactsService'
+import { fetchContactRoles, fetchKnownContacts } from '../../services/contactsService'
+import type { KnownContact } from '../../services/contactsService'
 import ProjectContacts from '../project/ProjectContacts'
 import RegisterView from '../register/RegisterView'
 import type { ProjectRecord, RfiRecord } from '../../types/workspace'
@@ -33,13 +33,14 @@ type ProjectsPanelProps = {
 }
 
 type ProjectForm = Omit<ProjectRecord, 'project_id'>
-// AOR and EOR options come from the contacts directory (design team). EORs are stored as "Role: Company".
+// AOR and EOR suggestions are the design team companies used on any project. EORs are stored as "Role: Company",
+// and saving the project fills its contact sheet with them.
 const AOR_ROLE = 'Architect'
 const NOT_EOR_ROLES = new Set([AOR_ROLE, 'Owner'])
 const defaultEorType = 'Structural Engineer'
 
 // Company names in the directory for a design-team role, one entry per company.
-function companiesFor(directory: DirectoryContact[], role: string, input: string) {
+function companiesFor(directory: KnownContact[], role: string, input: string) {
   const query = input.trim().toLowerCase()
   if (!query) return []
   const names = directory
@@ -165,21 +166,14 @@ export default function ProjectsPanel({
   const [rfiFilter, setRfiFilter] = useState<'opened' | 'closed'>('opened')
   const [selectedRfiDetailId, setSelectedRfiDetailId] = useState<number | null>(routeRfiId)
   const [rfiDraft, setRfiDraft] = useState<Omit<RfiRecord, 'id'> | null>(null)
-  const [directory, setDirectory] = useState<DirectoryContact[]>([])
+  const [directory, setDirectory] = useState<KnownContact[]>([])
   const [eorTypes, setEorTypes] = useState<string[]>([defaultEorType])
   const [aorInput, setAorInput] = useState('')
   const [eorInput, setEorInput] = useState('')
   const [showAorSuggestions, setShowAorSuggestions] = useState(false)
   const [showEorSuggestions, setShowEorSuggestions] = useState(false)
   const [selectedEorType, setSelectedEorType] = useState<string>(defaultEorType)
-  const [showAorModal, setShowAorModal] = useState(false)
-  const [showEorModal, setShowEorModal] = useState(false)
-  const [newAorName, setNewAorName] = useState('')
-  const [newEorName, setNewEorName] = useState('')
-  const [newEorType, setNewEorType] = useState<string>(defaultEorType)
   const [noteInput, setNoteInput] = useState('')
-  const [addCreatedAorToProject, setAddCreatedAorToProject] = useState(true)
-  const [addCreatedEorToProject, setAddCreatedEorToProject] = useState(true)
   const [detailSearch, setDetailSearch] = useState('')
   const [detailTimingFilter, setDetailTimingFilter] = useState<'all' | 'late' | 'this_week'>('all')
   const [isSavingRfiDetail, setIsSavingRfiDetail] = useState(false)
@@ -187,11 +181,9 @@ export default function ProjectsPanel({
   const [projectSortDirection, setProjectSortDirection] = useState<'asc' | 'desc'>('asc')
   const [projectPage, setProjectPage] = useState(1)
 
-  const loadDirectory = async () => setDirectory(await fetchDirectoryContacts(token))
-
   useEffect(() => {
     let mounted = true
-    void Promise.all([fetchDirectoryContacts(token), fetchContactRoles(token)]).then(([contacts, roles]) => {
+    void Promise.all([fetchKnownContacts(token), fetchContactRoles(token)]).then(([contacts, roles]) => {
       if (!mounted) return
       setDirectory(contacts)
       const types = roles.design_team.map((role) => role.name).filter((name) => !NOT_EOR_ROLES.has(name))
@@ -318,40 +310,6 @@ export default function ProjectsPanel({
     } finally {
       setIsSavingRfiDetail(false)
     }
-  }
-
-  const handleCreateAor = async () => {
-    const name = newAorName.trim()
-    if (!name) return setMessage('AOR name is required.')
-    const res = await createDirectoryContact(token, { category: 'design_team', role: AOR_ROLE, company: name, contact: '', email: '', phone: '', notes: '' })
-    if (!res.ok || !res.data) return setMessage('Failed to add the AOR to Contacts.')
-    await loadDirectory()
-    if (addCreatedAorToProject) {
-      setForm((prev) => ({ ...prev, aor: name }))
-      setAorInput(name)
-    }
-    setNewAorName('')
-    setAddCreatedAorToProject(true)
-    setShowAorModal(false)
-    setMessage('AOR added to Contacts.')
-  }
-
-  const handleCreateEor = async () => {
-    const name = newEorName.trim()
-    if (!name) return setMessage('EOR name is required.')
-    const res = await createDirectoryContact(token, { category: 'design_team', role: newEorType, company: name, contact: '', email: '', phone: '', notes: '' })
-    if (!res.ok || !res.data) return setMessage('Failed to add the EOR to Contacts.')
-    await loadDirectory()
-    setSelectedEorType(newEorType)
-    if (addCreatedEorToProject) {
-      setForm((prev) => ({ ...prev, eor: addUniqueMultiValue(prev.eor, `${newEorType}: ${name}`) }))
-    }
-    setNewEorName('')
-    setEorInput('')
-    setNewEorType(defaultEorType)
-    setAddCreatedEorToProject(true)
-    setShowEorModal(false)
-    setMessage('EOR added to Contacts.')
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -945,13 +903,6 @@ export default function ProjectsPanel({
                     </div>
                   ) : null}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAorModal(true)}
-                  className="mt-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
-                >
-                  Add AOR to Contacts
-                </button>
               </>
             ) : key === 'status' ? (
               <select
@@ -1070,13 +1021,6 @@ export default function ProjectsPanel({
                   className="mt-2 rounded-lg bg-brand-700 px-3 py-2 text-xs font-semibold text-white"
                 >
                   Add EOR to Project
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowEorModal(true)}
-                  className="mt-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
-                >
-                  Add EOR to Contacts
                 </button>
                 {form.eor ? (
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1243,110 +1187,6 @@ export default function ProjectsPanel({
         </div>
       </div>
 
-      {showAorModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Add AOR</h3>
-            <label className="mt-3 block text-sm text-slate-700">
-              AOR Name
-              <input
-                type="text"
-                value={newAorName}
-                onChange={(e) => setNewAorName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-              />
-            </label>
-            <label className="mt-3 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-slate-800">
-              <input
-                type="checkbox"
-                checked={addCreatedAorToProject}
-                onChange={(e) => setAddCreatedAorToProject(e.target.checked)}
-                className="h-4 w-4"
-              />
-              Also add this AOR to current project
-            </label>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={handleCreateAor}
-                className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Save AOR
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAorModal(false)
-                  setNewAorName('')
-                  setAddCreatedAorToProject(true)
-                }}
-                className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showEorModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Add EOR</h3>
-            <label className="mt-3 block text-sm text-slate-700">
-              EOR role
-              <select
-                value={newEorType}
-                onChange={(e) => setNewEorType(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-              >
-                {eorTypes.map((typeItem) => (
-                  <option key={typeItem} value={typeItem}>{typeItem}</option>
-                ))}
-              </select>
-            </label>
-            <label className="mt-3 block text-sm text-slate-700">
-              EOR Name
-              <input
-                type="text"
-                value={newEorName}
-                onChange={(e) => setNewEorName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-              />
-            </label>
-            <label className="mt-3 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-slate-800">
-              <input
-                type="checkbox"
-                checked={addCreatedEorToProject}
-                onChange={(e) => setAddCreatedEorToProject(e.target.checked)}
-                className="h-4 w-4"
-              />
-              Also add this EOR to current project
-            </label>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={handleCreateEor}
-                className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Save EOR
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowEorModal(false)
-                  setNewEorName('')
-                  setNewEorType(defaultEorType)
-                  setAddCreatedEorToProject(true)
-                }}
-                className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
       </>
       ) : null}
     </section>

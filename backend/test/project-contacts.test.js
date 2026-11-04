@@ -27,3 +27,13 @@ test("stored rows fill their role and unlisted roles come last as custom rows", 
   assert.equal(last.role, "Demolition");
   assert.equal(last.custom, true);
 });
+
+test("a project's AOR and EOR fields become design team rows", async () => {
+  const { designTeamFromProjectFields } = await import("../src/db/contacts-schema.js");
+  assert.deepEqual(designTeamFromProjectFields("ACME Architects", "Civil EOR: Kimley | Structural Engineer: DDA | broken"), [
+    { role: "Architect", company: "ACME Architects" },
+    { role: "Civil Engineer", company: "Kimley" },
+    { role: "Structural Engineer", company: "DDA" }
+  ]);
+  assert.deepEqual(designTeamFromProjectFields(null, ""), []);
+});
