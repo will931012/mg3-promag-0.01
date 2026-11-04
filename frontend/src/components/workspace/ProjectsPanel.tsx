@@ -15,6 +15,7 @@ import {
 } from '../../services/workspaceService'
 import { fetchContactRoles, fetchKnownContacts } from '../../services/contactsService'
 import type { KnownContact } from '../../services/contactsService'
+import ContactsWindow from '../project/ContactsWindow'
 import ProjectContacts from '../project/ProjectContacts'
 import RegisterView from '../register/RegisterView'
 import type { ProjectRecord, RfiRecord } from '../../types/workspace'
@@ -163,6 +164,9 @@ export default function ProjectsPanel({
   const [showForm, setShowForm] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(routeProjectId)
   const [detailsView, setDetailsView] = useState<'submittals' | 'rfis'>('submittals')
+  // The project's contacts open in a pop-up window; the header strip reloads when it closes.
+  const [contactsOpen, setContactsOpen] = useState(false)
+  const [contactsReloadKey, setContactsReloadKey] = useState(0)
   const [rfiFilter, setRfiFilter] = useState<'opened' | 'closed'>('opened')
   const [selectedRfiDetailId, setSelectedRfiDetailId] = useState<number | null>(routeRfiId)
   const [rfiDraft, setRfiDraft] = useState<Omit<RfiRecord, 'id'> | null>(null)
@@ -620,7 +624,26 @@ export default function ProjectsPanel({
                   </div>
                 </div>
 
-                <ProjectContacts key={selectedProject.project_id} token={token} projectId={selectedProject.project_id} projectName={selectedProject.project_name} setMessage={setMessage} />
+                <ProjectContacts
+                  key={selectedProject.project_id}
+                  token={token}
+                  projectId={selectedProject.project_id}
+                  setMessage={setMessage}
+                  onOpenWindow={() => setContactsOpen(true)}
+                  reloadKey={contactsReloadKey}
+                />
+                {contactsOpen ? (
+                  <ContactsWindow
+                    token={token}
+                    projectId={selectedProject.project_id}
+                    projectName={selectedProject.project_name}
+                    setMessage={setMessage}
+                    onClose={() => {
+                      setContactsOpen(false)
+                      setContactsReloadKey((key) => key + 1)
+                    }}
+                  />
+                ) : null}
 
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
                   {(['submittals', 'rfis'] as const).map((view) => (
@@ -633,6 +656,14 @@ export default function ProjectsPanel({
                       {view === 'submittals' ? 'Submittals' : `RFIs (${projectRfis.length})`}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setContactsOpen(true)}
+                    aria-haspopup="dialog"
+                    className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${contactsOpen ? 'bg-brand-700 text-white' : 'border border-brand-700 text-brand-700'}`}
+                  >
+                    Contacts
+                  </button>
                   {detailsView === 'rfis' ? (
                     <div className="ml-auto flex flex-wrap gap-2">
                       <select
