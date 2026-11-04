@@ -55,8 +55,9 @@ export const SUBMITTAL_TYPES = [
   "Closeout / O&M"
 ];
 
+// Trades from the project contacts sheet. Demolition, drywall & ceilings, finishes, test & balance,
+// paving & striping and testing lab were removed on request.
 export const TRADES = [
-  "Demolition",
   "Concrete / foundations",
   "Piles",
   "Precast",
@@ -70,26 +71,21 @@ export const TRADES = [
   "Window wall / storefront",
   "Doors, frames & hardware",
   "Coiling doors & smoke curtains",
-  "Drywall & ceilings",
-  "Finishes (tile, flooring, paint)",
   "Specialties & signage",
   "Elevators",
   "Fire sprinkler / standpipe / fire pump",
   "Plumbing",
   "HVAC",
   "Controls / BAS",
-  "Test & balance",
   "Electrical",
   "Generator",
   "Fire alarm",
   "ERRCS / BDA",
   "Low voltage / security",
   "Sitework / civil",
-  "Paving & striping",
   "Landscape",
   "Irrigation",
-  "Surveyor",
-  "Testing lab"
+  "Surveyor"
 ];
 
 export const BALL = {
@@ -109,3 +105,11 @@ export const ALERTS = {
   NEEDED_ON_SITE: "NEEDED ON SITE — NOT APPROVED",
   LATE_TO_SUBMIT: "LATE TO SUBMIT"
 };
+
+// Project contacts sheet: one row per role (design team) or trade (GC and subcontractors).
+export const CONTACT_CATEGORIES = {
+  design_team: { title: "Design team / reviewers", roles: REVIEWERS },
+  contractors: { title: "General contractor and subcontractors", roles: ["General Contractor", ...TRADES] }
+};
+
+export const DEFAULT_CONTACT_COMPANIES = { contractors: { "General Contractor": "MG3 Developer Group, LLC" } };

@@ -12,6 +12,7 @@ import contractorsRouter from "./routes/contractors.routes.js";
 import subcontractorsRouter from "./routes/subcontractors.routes.js";
 import rfisRouter from "./routes/rfis.routes.js";
 import registerRouter from "./routes/register.routes.js";
+import projectContactsRouter from "./routes/project-contacts.routes.js";
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use("/api/contractors", authRequired, contractorsRouter);
 app.use("/api/subcontractors", authRequired, subcontractorsRouter);
 app.use("/api/register", authRequired, registerRouter);
 app.use("/api/rfis", authRequired, rfisRouter);
+app.use("/api/project-contacts", authRequired, projectContactsRouter);
 
 export default app;
 

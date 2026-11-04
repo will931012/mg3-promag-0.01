@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import EmptyState from '../common/EmptyState'
 import StatusBadge from '../common/StatusBadge'
+import { formatDate } from '../register/registerUi'
 import type { RegisterActivity, RegisterActivityItem } from '../../types/register'
 import type { DashboardSummary, ProjectRecord, RfiRecord } from '../../types/workspace'
 
@@ -13,461 +14,195 @@ type DashboardPanelProps = {
   onNavigate: (path: string) => void
 }
 
-const safePercent = (value: number, total: number): number => {
-  if (total <= 0) return 0
-  return Math.max(0, Math.min(100, Math.round((value / total) * 100)))
+type NextDue = { date: string; label: string }
+
+type ProjectRow = {
+  project: ProjectRecord
+  openSubmittals: number
+  submittalAlerts: number
+  openRfis: number
+  overdueRfis: number
+  nextDue: NextDue | null
 }
 
 const isoToday = () => new Date().toISOString().slice(0, 10)
-const addDays = (dateIso: string, days: number) => {
-  const value = new Date(`${dateIso}T00:00:00`)
-  value.setDate(value.getDate() + days)
-  return value.toISOString().slice(0, 10)
-}
 
-function buildLinePath(values: number[]): string {
-  if (values.length === 0) return ''
-  const max = Math.max(...values, 1)
-  const stepX = values.length > 1 ? 100 / (values.length - 1) : 100
-  return values
-    .map((value, index) => {
-      const x = index * stepX
-      const y = 100 - (value / max) * 85
-      return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
-    })
-    .join(' ')
-}
-
-function normalizeProjectStatus(value: string | null): 'preliminary' | 'construction' | 'completed' | 'other' {
-  const text = String(value || '').toLowerCase()
-  if (text.includes('prelim')) return 'preliminary'
-  if (text.includes('construct')) return 'construction'
-  if (text.includes('finish') || text.includes('completion') || text.includes('complete')) return 'completed'
-  return 'other'
-}
-
-function normalizePriority(value: string | null): 'high' | 'medium' | 'low' | 'other' {
-  const text = String(value || '').toLowerCase()
-  if (text === 'high') return 'high'
-  if (text === 'medium') return 'medium'
-  if (text === 'low') return 'low'
-  return 'other'
-}
-
-function isClosedSubmittal(item: RegisterActivityItem): boolean {
-  return item.ball_in_court === 'Closed'
+function isOpenSubmittal(item: RegisterActivityItem): boolean {
+  return item.latest_rev !== null && item.ball_in_court !== 'Closed' && item.ball_in_court !== 'Superseded'
 }
 
 function isClosedRfi(item: RfiRecord): boolean {
   const lifecycle = String(item.lifecycle_status || '').toLowerCase()
   if (lifecycle === 'closed') return true
+  if (lifecycle === 'opened') return false
   const status = String(item.status || '').toLowerCase()
   return status.includes('approved') || status.includes('closed') || status.includes('answered') || status.includes('complete')
 }
 
+function statusTone(status: string | null): 'neutral' | 'success' | 'warning' | 'info' {
+  const text = String(status || '').toLowerCase()
+  if (text.includes('construct')) return 'info'
+  if (text.includes('prelim')) return 'warning'
+  if (text.includes('complet') || text.includes('finish')) return 'success'
+  return 'neutral'
+}
+
+const earliest = (current: NextDue | null, next: NextDue | null) => (!next ? current : !current || next.date < current.date ? next : current)
+
 export default function DashboardPanel({ summary, projects, registerActivity, rfis, onNavigate }: DashboardPanelProps) {
-  // Register items that have been submitted or have an alert. review_due is set while a reviewer has it.
-  const submittals = registerActivity.items
-  const totalProjects = Math.max(projects.length, summary.active_projects)
-  const pressureCases = summary.submittals_late + summary.rfis_overdue_open
-  const deliveryFlow = useMemo(
-    () => [summary.active_projects, summary.submittals_open, summary.submittals_late, summary.rfis_open, summary.rfis_overdue_open],
-    [summary]
-  )
-  const deliveryPath = useMemo(() => buildLinePath(deliveryFlow), [deliveryFlow])
-  const currentDate = isoToday()
-  const nextWeekDate = addDays(currentDate, 7)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const today = isoToday()
 
-  const projectPhase = useMemo(() => {
-    const counters = { preliminary: 0, construction: 0, completed: 0, other: 0 }
-    projects.forEach((project) => { counters[normalizeProjectStatus(project.status)] += 1 })
-    return counters
-  }, [projects])
-
-  const priorityLoad = useMemo(() => {
-    const counters = { high: 0, medium: 0, low: 0, other: 0 }
-    projects.forEach((project) => { counters[normalizePriority(project.priority)] += 1 })
-    return counters
-  }, [projects])
-
-  const submittalsDueSoon = useMemo(
-    () => submittals.filter((item) => item.review_due && item.review_due >= currentDate && item.review_due <= nextWeekDate && !isClosedSubmittal(item)).length,
-    [submittals, currentDate, nextWeekDate]
-  )
-  const rfisDueSoon = useMemo(
-    () => rfis.filter((item) => item.response_due && item.response_due >= currentDate && item.response_due <= nextWeekDate && !isClosedRfi(item)).length,
-    [rfis, currentDate, nextWeekDate]
-  )
-  const dueTodayCount = useMemo(
-    () =>
-      submittals.filter((item) => item.review_due === currentDate && !isClosedSubmittal(item)).length +
-      rfis.filter((item) => item.response_due === currentDate && !isClosedRfi(item)).length,
-    [currentDate, submittals, rfis]
-  )
-  const overdueCount = useMemo(
-    () =>
-      submittals.filter((item) => item.review_due && item.review_due < currentDate && !isClosedSubmittal(item)).length +
-      rfis.filter((item) => item.response_due && item.response_due < currentDate && !isClosedRfi(item)).length,
-    [currentDate, submittals, rfis]
-  )
-  const quickActions = [
-    { label: 'New Project', detail: 'Set up a new job', path: '/projects' },
-    { label: 'Log Submittal', detail: 'Open the shop drawing register', path: '/submittals' },
-    { label: 'Log RFI', detail: 'Track field questions', path: '/rfis' },
-    { label: 'Review Risks', detail: 'Open late items', path: '/dashboard' },
-  ] as const
-
-  const cards = [
-    {
-      label: 'Active Projects',
-      value: summary.active_projects,
-      chip: `${safePercent(summary.active_projects, totalProjects || 1)}% of portfolio`,
-    },
-    {
-      label: 'Open Submittals',
-      value: summary.submittals_open,
-      chip: `${summary.submittals_late} late in review`,
-    },
-    {
-      label: 'Open RFIs',
-      value: summary.rfis_open,
-      chip: `${summary.rfis_overdue_open} overdue response`,
-    },
-    {
-      label: 'Field Pressure',
-      value: pressureCases,
-      chip: pressureCases === 0 ? 'No blockers today' : 'Needs follow-up',
-    },
-  ] as const
-  const urgentSubmittals = useMemo(
-    () => (registerActivity.attention.length ? registerActivity.attention : submittals).slice(0, 3),
-    [registerActivity.attention, submittals]
-  )
-  const urgentRfis = useMemo(
-    () => rfis.filter((item) => item.project_id).slice(0, 3),
-    [rfis]
-  )
-  const topProjects = useMemo(() => projects.slice(0, 3), [projects])
-  const attentionItems = useMemo(
-    () => [
-      ...submittals
-        .filter((item) => item.alert)
-        .map((item) => ({
-          id: `submittal-${item.id}`,
-          type: 'Submittal',
-          title: `${item.submittal_no} · ${item.project_name}`,
-          meta: item.alert,
-          path: `/projects/${encodeURIComponent(String(item.project_id))}/submittals/${item.id}`,
-        })),
-      ...rfis
-        .filter((item) => item.project_id && item.response_due && item.response_due < currentDate && !isClosedRfi(item))
-        .map((item) => ({
-          id: `rfi-${item.id}`,
-          type: 'RFI',
-          title: item.rfi_number || `RFI ${item.id}`,
-          meta: item.subject || 'Pending response',
-          path: `/projects/${encodeURIComponent(String(item.project_id))}/rfis/${item.id}`,
-        })),
-    ].slice(0, 4),
-    [submittals, rfis, currentDate]
-  )
-  const recentActivity = useMemo(
-    () =>
-      [
-        ...submittals
-          .filter((item) => item.project_id)
-          .map((item) => ({
-            id: `submittal-${item.id}`,
-            kind: 'Submittal',
-            title: item.submittal_no,
-            subtitle: `${item.description} · ${item.project_name}`,
-            path: `/projects/${encodeURIComponent(String(item.project_id))}/submittals/${item.id}`,
-            order: item.id,
-          })),
-        ...rfis
-          .filter((item) => item.project_id)
-          .map((item) => ({
-            id: `rfi-${item.id}`,
-            kind: 'RFI',
-            title: item.rfi_number || `RFI ${item.id}`,
-            subtitle: item.subject || item.project_id || 'No subject',
-            path: `/projects/${encodeURIComponent(String(item.project_id))}/rfis/${item.id}`,
-            order: item.id,
-          })),
-      ]
-        .sort((a, b) => b.order - a.order)
-        .slice(0, 5),
-    [submittals, rfis]
-  )
-  const projectHealth = useMemo(() => {
-    const projectMap = new Map<string, { name: string; openSubmittals: number; openRfis: number; late: number }>()
-    projects.forEach((project) => {
-      projectMap.set(project.project_id, { name: project.project_name, openSubmittals: 0, openRfis: 0, late: 0 })
-    })
-    submittals.forEach((item) => {
-      if (!item.project_id || !projectMap.has(item.project_id) || isClosedSubmittal(item)) return
-      const entry = projectMap.get(item.project_id)
-      if (!entry) return
-      entry.openSubmittals += 1
-      if (item.alert) entry.late += 1
+  const rows = useMemo<ProjectRow[]>(() => {
+    const byProject = new Map<string, ProjectRow>(
+      projects.map((project) => [project.project_id, { project, openSubmittals: 0, submittalAlerts: 0, openRfis: 0, overdueRfis: 0, nextDue: null }])
+    )
+    registerActivity.items.forEach((item) => {
+      const row = byProject.get(item.project_id)
+      if (!row) return
+      if (item.alert) row.submittalAlerts += 1
+      if (isOpenSubmittal(item)) {
+        row.openSubmittals += 1
+        if (item.review_due) row.nextDue = earliest(row.nextDue, { date: item.review_due, label: `Submittal ${item.submittal_no}` })
+      } else if (item.latest_rev === null && item.submit_by) {
+        row.nextDue = earliest(row.nextDue, { date: item.submit_by, label: `Submit ${item.submittal_no}` })
+      }
     })
     rfis.forEach((item) => {
-      if (!item.project_id || !projectMap.has(item.project_id) || isClosedRfi(item)) return
-      const entry = projectMap.get(item.project_id)
-      if (!entry) return
-      entry.openRfis += 1
-      if (item.response_due && item.response_due < currentDate) entry.late += 1
+      const row = item.project_id ? byProject.get(item.project_id) : undefined
+      if (!row || isClosedRfi(item)) return
+      row.openRfis += 1
+      if (item.response_due) {
+        if (item.response_due < today) row.overdueRfis += 1
+        row.nextDue = earliest(row.nextDue, { date: item.response_due, label: item.rfi_number || `RFI ${item.id}` })
+      }
     })
-    return Array.from(projectMap.entries())
-      .map(([projectId, value]) => ({
-        projectId,
-        ...value,
-        load: value.openSubmittals + value.openRfis + value.late * 2,
-      }))
-      .sort((a, b) => b.load - a.load)
-      .slice(0, 4)
-  }, [projects, submittals, rfis, currentDate])
+    return Array.from(byProject.values())
+  }, [projects, registerActivity.items, rfis, today])
+
+  const statusOptions = useMemo(
+    () => Array.from(new Set(projects.map((project) => project.status).filter((value): value is string => Boolean(value)))).sort(),
+    [projects]
+  )
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return rows
+      .filter((row) => !statusFilter || row.project.status === statusFilter)
+      .filter((row) => !query || `${row.project.project_name} ${row.project.address || ''} ${row.project.developer || ''}`.toLowerCase().includes(query))
+      .sort((a, b) => {
+        // Projects with the nearest deadline first; projects with nothing due go last, by name.
+        if (a.nextDue && b.nextDue) return a.nextDue.date.localeCompare(b.nextDue.date)
+        if (a.nextDue) return -1
+        if (b.nextDue) return 1
+        return a.project.project_name.localeCompare(b.project.project_name)
+      })
+  }, [rows, search, statusFilter])
+
+  const cards = [
+    { label: 'Active projects', value: summary.active_projects, tone: 'neutral', path: '/projects' },
+    { label: 'Open submittals', value: registerActivity.submittals_open, tone: 'info', path: '/submittals' },
+    { label: 'Submittal alerts', value: registerActivity.alerts, tone: registerActivity.alerts ? 'danger' : 'neutral', path: '/submittals' },
+    { label: 'Open RFIs', value: summary.rfis_open, tone: 'info', path: '/rfis' },
+    { label: 'Overdue RFIs', value: summary.rfis_overdue_open, tone: summary.rfis_overdue_open ? 'danger' : 'neutral', path: '/rfis' },
+  ] as const
 
   return (
-    <section className="space-y-3 text-ink-soft">
-      <div className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '0ms' }}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-ink-muted">Construction Control</p>
-            <h2 className="text-xl font-semibold text-ink">Project Operations Snapshot</h2>
-            <p className="mt-1 text-sm text-ink-muted">Monitor project load, review flow and field response pressure from one place.</p>
-          </div>
-          <div className="grid min-w-[240px] gap-2 sm:grid-cols-2">
-            {quickActions.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                onClick={() => onNavigate(action.path)}
-                className="rounded-xl border border-line bg-card px-3 py-2 text-left transition hover:border-accent hover:bg-hover"
-              >
-                <p className="text-sm font-semibold text-ink">{action.label}</p>
-                <p className="text-xs text-ink-muted">{action.detail}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          {cards.map((card, index) => {
-            const to =
-              card.label === 'Active Projects'
-                ? '/projects'
-                : card.label.includes('Submittals')
-                  ? '/submittals'
-                  : card.label.includes('RFIs')
-                    ? '/rfis'
-                    : '/dashboard'
-            return (
-            <button
-              key={card.label}
-              type="button"
-              onClick={() => onNavigate(to)}
-              className="slide-in rounded-lg border border-line bg-card p-3 text-left transition hover:border-accent-teal/60 hover:bg-hover"
-              style={{ animationDelay: `${60 + (index * 45)}ms` }}
+    <section className="space-y-4 pt-2 text-ink-soft">
+      <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-5">
+        {cards.map((card) => (
+          <button
+            key={card.label}
+            type="button"
+            onClick={() => onNavigate(card.path)}
+            className="rounded-xl border border-line bg-raised p-3 text-left transition hover:border-accent hover:bg-hover"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-muted">{card.label}</p>
+            <p className={`mt-1 text-3xl font-bold ${card.tone === 'danger' ? 'text-rose-700' : card.tone === 'info' ? 'text-sky-700' : 'text-ink'}`}>{card.value}</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-line bg-raised p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-ink">Projects</h2>
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search projects"
+              aria-label="Search projects"
+              className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm text-slate-900"
+            />
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              aria-label="Project status"
+              className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm text-slate-900"
             >
-              <p className="text-xs font-semibold tracking-[0.06em] text-ink-muted">{card.label}</p>
-              <p className="mt-1 text-2xl font-bold text-ink">{card.value}</p>
-              <div className="mt-1">
-                <StatusBadge label={card.chip} tone={card.label === 'Field Pressure' ? 'warning' : 'info'} />
-              </div>
-            </button>
-          )})}
-        </div>
-      </div>
-
-      <div className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '120ms' }}>
-        <h3 className="text-lg font-semibold text-ink">Quick Links</h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-line/60 bg-card p-3">
-            <p className="text-xs text-ink-muted">Projects</p>
-            <div className="mt-2 space-y-2">
-              {topProjects.length ? topProjects.map((project) => (
-                <button
-                  key={project.project_id}
-                  type="button"
-                  onClick={() => onNavigate(`/projects/${encodeURIComponent(project.project_id)}`)}
-                  className="block w-full rounded bg-ink/5 px-2 py-1 text-left text-sm font-medium text-ink-soft hover:bg-ink/10"
-                >
-                  {project.project_name}
-                </button>
-              )) : <EmptyState title="No projects yet" description="Create your first project to populate dashboard links." ctaLabel="Go to Projects" onCta={() => onNavigate('/projects')} />}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line/60 bg-card p-3">
-            <p className="text-xs text-ink-muted">Submittals</p>
-            <div className="mt-2 space-y-2">
-              {urgentSubmittals.length ? urgentSubmittals.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    if (!item.project_id) return
-                    onNavigate(`/projects/${encodeURIComponent(item.project_id)}/submittals/${item.id}`)
-                  }}
-                  className="block w-full rounded bg-ink/5 px-2 py-1 text-left text-sm font-medium text-ink-soft hover:bg-ink/10"
-                >
-                  {item.submittal_no}
-                  <span className="block truncate text-xs font-normal text-ink-muted">{item.alert || item.description}</span>
-                </button>
-              )) : <EmptyState title="No submissions yet" description="Log a submission in a project's register to track its review." ctaLabel="Go to Register" onCta={() => onNavigate('/submittals')} />}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line/60 bg-card p-3">
-            <p className="text-xs text-ink-muted">RFIs</p>
-            <div className="mt-2 space-y-2">
-              {urgentRfis.length ? urgentRfis.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    if (!item.project_id) return
-                    onNavigate(`/projects/${encodeURIComponent(item.project_id)}/rfis/${item.id}`)
-                  }}
-                  className="block w-full rounded bg-ink/5 px-2 py-1 text-left text-sm font-medium text-ink-soft hover:bg-ink/10"
-                >
-                  {item.rfi_number || `RFI ${item.id}`}
-                </button>
-              )) : <EmptyState title="No RFIs" description="Create an RFI to start communication tracking." ctaLabel="Go to RFIs" onCta={() => onNavigate('/rfis')} />}
-            </div>
+              <option value="">All statuses</option>
+              {statusOptions.map((option) => <option key={option}>{option}</option>)}
+            </select>
           </div>
         </div>
-      </div>
 
-      <div className="grid gap-3 xl:grid-cols-[1.5fr_1fr]">
-        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '180ms' }}>
-          <h3 className="text-lg font-semibold text-ink">Delivery Flow</h3>
-          <div className="mt-3 rounded-lg border border-line/60 bg-card p-3">
-            <svg viewBox="0 0 100 100" className="h-40 w-full">
-              <defs>
-                <linearGradient id="dashboardLine" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" style={{ stopColor: 'rgb(var(--accent-teal))' }} />
-                  <stop offset="100%" style={{ stopColor: 'rgb(var(--accent))' }} />
-                </linearGradient>
-              </defs>
-              <path d={deliveryPath} fill="none" stroke="url(#dashboardLine)" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-ink-muted md:grid-cols-5">
-              <span>Active: {summary.active_projects}</span>
-              <span>Subm Open: {summary.submittals_open}</span>
-              <span>Subm Late: {summary.submittals_late}</span>
-              <span>RFI Open: {summary.rfis_open}</span>
-              <span>RFI Overdue: {summary.rfis_overdue_open}</span>
-            </div>
+        {projects.length === 0 ? (
+          <div className="mt-3">
+            <EmptyState title="No projects yet" description="Create your first project to see it here." ctaLabel="Go to Projects" onCta={() => onNavigate('/projects')} />
           </div>
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <div className="rounded-lg border border-line/60 bg-card p-3">
-              <p className="text-xs text-ink-muted">Due This Week</p>
-              <p className="text-2xl font-bold text-ink">{submittalsDueSoon + rfisDueSoon}</p>
-              <p className="mt-1 text-xs text-ink-muted">{dueTodayCount} due today</p>
-            </div>
-            <div className="rounded-lg border border-line/60 bg-card p-3">
-              <p className="text-xs text-ink-muted">Overdue Pressure</p>
-              <p className="text-2xl font-bold text-ink">{overdueCount}</p>
-              <p className="mt-1 text-xs text-ink-muted">{summary.submittals_late} submittals and {summary.rfis_overdue_open} RFIs</p>
-            </div>
+        ) : (
+          <div className="ui-scroll mt-3 overflow-x-auto">
+            <table className="ui-table min-w-[760px]">
+              <thead>
+                <tr className="bg-slate-100">
+                  {['Project', 'Status', 'Open submittals', 'Open RFIs', 'Next due'].map((header) => (
+                    <th key={header} className="border px-3 py-2 text-left">{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => {
+                  const overdue = row.nextDue ? row.nextDue.date < today : false
+                  return (
+                    <tr
+                      key={row.project.project_id}
+                      onClick={() => onNavigate(`/projects/${encodeURIComponent(row.project.project_id)}`)}
+                      className="cursor-pointer hover:bg-slate-50"
+                    >
+                      <td className="border px-3 py-2">
+                        <span className="font-semibold text-slate-900">{row.project.project_name}</span>
+                        {row.project.address ? <span className="block text-xs text-slate-500">{row.project.address}</span> : null}
+                      </td>
+                      <td className="whitespace-nowrap border px-3 py-2">
+                        {row.project.status ? <StatusBadge label={row.project.status} tone={statusTone(row.project.status)} /> : <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="whitespace-nowrap border px-3 py-2">
+                        {row.openSubmittals}
+                        {row.submittalAlerts ? <span className="ml-2"><StatusBadge label={`${row.submittalAlerts} alert${row.submittalAlerts > 1 ? 's' : ''}`} tone="danger" /></span> : null}
+                      </td>
+                      <td className="whitespace-nowrap border px-3 py-2">
+                        {row.openRfis}
+                        {row.overdueRfis ? <span className="ml-2"><StatusBadge label={`${row.overdueRfis} overdue`} tone="danger" /></span> : null}
+                      </td>
+                      <td className="whitespace-nowrap border px-3 py-2">
+                        {row.nextDue ? (
+                          <>
+                            <span className={overdue ? 'font-semibold text-rose-700' : 'text-slate-900'}>{formatDate(row.nextDue.date)}</span>
+                            <span className="block text-xs text-slate-500">{overdue ? 'Overdue · ' : ''}{row.nextDue.label}</span>
+                          </>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {visibleRows.length === 0 ? <p className="mt-3 text-sm text-slate-500">No projects match the search.</p> : null}
           </div>
-        </article>
-
-        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '230ms' }}>
-          <h3 className="text-lg font-semibold text-ink">Project Distribution</h3>
-          <div className="mt-3 space-y-3 text-xs">
-            <div>
-              <div className="mb-1 flex justify-between text-ink-muted"><span>Preliminary</span><span>{projectPhase.preliminary}</span></div>
-              <div className="h-2 rounded-full bg-ink/10"><div className="h-2 rounded-full bg-accent-teal" style={{ width: `${safePercent(projectPhase.preliminary, totalProjects)}%` }} /></div>
-            </div>
-            <div>
-              <div className="mb-1 flex justify-between text-ink-muted"><span>Construction</span><span>{projectPhase.construction}</span></div>
-              <div className="h-2 rounded-full bg-ink/10"><div className="h-2 rounded-full bg-accent" style={{ width: `${safePercent(projectPhase.construction, totalProjects)}%` }} /></div>
-            </div>
-            <div>
-              <div className="mb-1 flex justify-between text-ink-muted"><span>Completed</span><span>{projectPhase.completed}</span></div>
-              <div className="h-2 rounded-full bg-ink/10"><div className="h-2 rounded-full bg-accent-gold" style={{ width: `${safePercent(projectPhase.completed, totalProjects)}%` }} /></div>
-            </div>
-          </div>
-          <h4 className="mt-5 text-xs uppercase tracking-[0.12em] text-ink-muted">Priority Mix</h4>
-          <div className="mt-2 grid gap-2 text-sm">
-            <div className="flex items-center justify-between rounded-md bg-card px-3 py-2"><span>High</span><span>{priorityLoad.high}</span></div>
-            <div className="flex items-center justify-between rounded-md bg-card px-3 py-2"><span>Medium</span><span>{priorityLoad.medium}</span></div>
-            <div className="flex items-center justify-between rounded-md bg-card px-3 py-2"><span>Low</span><span>{priorityLoad.low}</span></div>
-          </div>
-        </article>
-      </div>
-
-      <div className="grid gap-3 xl:grid-cols-[1.2fr_1fr_1fr]">
-        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '280ms' }}>
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-ink">Attention Board</h3>
-            <StatusBadge label={attentionItems.length ? `${attentionItems.length} critical items` : 'No urgent blockers'} tone={attentionItems.length ? 'warning' : 'success'} />
-          </div>
-          <div className="mt-3 space-y-2">
-            {attentionItems.length ? attentionItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onNavigate(item.path)}
-                className="flex w-full items-start justify-between rounded-lg border border-line bg-card px-3 py-3 text-left transition hover:border-accent-gold hover:bg-hover"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-ink">{item.title}</p>
-                  <p className="mt-1 text-xs text-ink-muted">{item.meta}</p>
-                </div>
-                <span className="rounded-full bg-accent-gold/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-gold">{item.type}</span>
-              </button>
-            )) : (
-              <EmptyState title="No urgent items" description="Late submittals and overdue RFIs will show here for immediate follow-up." ctaLabel="Review Dashboard" onCta={() => onNavigate('/dashboard')} />
-            )}
-          </div>
-        </article>
-
-        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '320ms' }}>
-          <h3 className="text-lg font-semibold text-ink">Recent Activity</h3>
-          <div className="mt-3 space-y-2">
-            {recentActivity.length ? recentActivity.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onNavigate(item.path)}
-                className="w-full rounded-lg border border-line bg-card px-3 py-3 text-left transition hover:border-accent hover:bg-hover"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-ink">{item.title}</p>
-                  <span className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">{item.kind}</span>
-                </div>
-                <p className="mt-1 text-xs text-ink-muted">{item.subtitle}</p>
-              </button>
-            )) : (
-              <EmptyState title="No activity yet" description="New submittals and RFIs will appear here as the workspace grows." ctaLabel="Go to Projects" onCta={() => onNavigate('/projects')} />
-            )}
-          </div>
-        </article>
-
-        <article className="slide-in rounded-xl border border-line bg-raised p-4" style={{ animationDelay: '360ms' }}>
-          <h3 className="text-lg font-semibold text-ink">Project Health</h3>
-          <div className="mt-3 space-y-2">
-            {projectHealth.length ? projectHealth.map((project) => (
-              <button
-                key={project.projectId}
-                type="button"
-                onClick={() => onNavigate(`/projects/${encodeURIComponent(project.projectId)}`)}
-                className="w-full rounded-lg border border-line bg-card px-3 py-3 text-left transition hover:border-accent-teal/60 hover:bg-hover"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{project.name}</p>
-                    <p className="mt-1 text-xs text-ink-muted">{project.openSubmittals} submittals open, {project.openRfis} RFIs open</p>
-                  </div>
-                  <StatusBadge label={project.late ? `${project.late} late` : 'On track'} tone={project.late ? 'warning' : 'success'} />
-                </div>
-              </button>
-            )) : (
-              <EmptyState title="No project load yet" description="Project health will populate once submittals or RFIs are linked to jobs." ctaLabel="Go to Projects" onCta={() => onNavigate('/projects')} />
-            )}
-          </div>
-        </article>
+        )}
       </div>
     </section>
   )

@@ -19,6 +19,7 @@ import {
   updateProject,
   updateRfi,
 } from '../../services/workspaceService'
+import ProjectContacts from '../project/ProjectContacts'
 import RegisterView from '../register/RegisterView'
 import type { AorRecord, EorRecord, ProjectRecord, RfiRecord } from '../../types/workspace'
 
@@ -134,20 +135,6 @@ const emptyProjectForm: ProjectForm = {
   priority: '',
   notes: '',
 }
-const BUILDING_PLACEHOLDER =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    "<svg xmlns='http://www.w3.org/2000/svg' width='720' height='420' viewBox='0 0 720 420'>" +
-      "<defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>" +
-      "<stop offset='0%' stop-color='#23395d'/><stop offset='100%' stop-color='#1a2438'/></linearGradient></defs>" +
-      "<rect width='720' height='420' fill='url(#g)'/>" +
-      "<rect x='120' y='90' width='480' height='260' rx='8' fill='#ced8e6'/>" +
-      "<rect x='160' y='130' width='70' height='70' fill='#8ea2bf'/><rect x='250' y='130' width='70' height='70' fill='#8ea2bf'/>" +
-      "<rect x='340' y='130' width='70' height='70' fill='#8ea2bf'/><rect x='430' y='130' width='70' height='70' fill='#8ea2bf'/>" +
-      "<rect x='520' y='130' width='40' height='180' fill='#8ea2bf'/><rect x='160' y='220' width='250' height='90' fill='#8ea2bf'/>" +
-      "<text x='360' y='60' text-anchor='middle' font-family='Arial' font-size='30' fill='#d7e2f4'>Project Building</text>" +
-    "</svg>"
-  )
 
 export default function ProjectsPanel({
   token,
@@ -665,85 +652,78 @@ export default function ProjectsPanel({
             </article>
           ) : (
             <>
-              <article className="detail-card mx-auto w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-md">
-                <img src={selectedProject.image_url || BUILDING_PLACEHOLDER} alt="Project placeholder building" className="h-56 w-full object-cover" />
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-3xl font-semibold text-slate-900">{selectedProject.project_name}</h3>
-                      <p className="mt-1 text-sm text-slate-500">{selectedProject.address || 'No address'}</p>
+              <header className="detail-card rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    {selectedProject.image_url ? (
+                      <img src={selectedProject.image_url} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                    ) : null}
+                    <div className="min-w-0">
+                      <h3 className="truncate text-2xl font-semibold text-slate-900">{selectedProject.project_name}</h3>
+                      <p className="mt-0.5 text-sm text-slate-500">
+                        {[selectedProject.address || 'No address', selectedProject.developer && `Developer: ${selectedProject.developer}`].filter(Boolean).join(' · ')}
+                      </p>
                     </div>
-                    <StatusBadge
-                      label={selectedProject.priority || 'N/A'}
-                      tone={selectedProject.priority === 'High' ? 'danger' : selectedProject.priority === 'Medium' ? 'warning' : 'info'}
-                    />
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">Developer: {selectedProject.developer || 'N/A'}</p>
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDetailsView('submittals')}
-                      className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
-                        detailsView === 'submittals' ? 'bg-brand-700 text-white' : 'border border-brand-700 text-brand-700'
-                      }`}
-                    >
-                      Submittals
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDetailsView('rfis')}
-                      className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
-                        detailsView === 'rfis' ? 'bg-brand-700 text-white' : 'border border-brand-700 text-brand-700'
-                      }`}
-                    >
-                      RFIs
-                    </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedProject.status ? <StatusBadge label={selectedProject.status} tone="info" /> : null}
+                    {selectedProject.priority ? (
+                      <StatusBadge
+                        label={`${selectedProject.priority} priority`}
+                        tone={selectedProject.priority === 'High' ? 'danger' : selectedProject.priority === 'Medium' ? 'warning' : 'neutral'}
+                      />
+                    ) : null}
                   </div>
-                  {detailsView === 'rfis' ? (
-                    <>
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setRfiFilter('opened')}
-                          className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${rfiFilter === 'opened' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}
-                        >
-                          RFIs Opened
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRfiFilter('closed')}
-                          className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${rfiFilter === 'closed' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}
-                        >
-                          RFIs Closed
-                        </button>
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2">
-                        <input
-                          type="text"
-                          value={detailSearch}
-                          onChange={(event) => setDetailSearch(event.target.value)}
-                          placeholder="Search RFI number or subject"
-                          className="w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
-                        />
-                        <select
-                          value={detailTimingFilter}
-                          onChange={(event) => setDetailTimingFilter(event.target.value as 'all' | 'late' | 'this_week')}
-                          className="w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
-                        >
-                          <option value="all">All timing</option>
-                          <option value="late">Late only</option>
-                          <option value="this_week">Due this week</option>
-                        </select>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="mt-3 text-xs text-slate-500">The shop drawing register for this project is below.</p>
-                  )}
                 </div>
-              </article>
+
+                <ProjectContacts key={selectedProject.project_id} token={token} projectId={selectedProject.project_id} setMessage={setMessage} />
+
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+                  {(['submittals', 'rfis'] as const).map((view) => (
+                    <button
+                      key={view}
+                      type="button"
+                      onClick={() => setDetailsView(view)}
+                      className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${detailsView === view ? 'bg-brand-700 text-white' : 'border border-brand-700 text-brand-700'}`}
+                    >
+                      {view === 'submittals' ? 'Submittals' : `RFIs (${projectRfis.length})`}
+                    </button>
+                  ))}
+                  {detailsView === 'rfis' ? (
+                    <div className="ml-auto flex flex-wrap gap-2">
+                      <select
+                        value={rfiFilter}
+                        onChange={(event) => setRfiFilter(event.target.value as 'opened' | 'closed')}
+                        aria-label="Open or closed RFIs"
+                        className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm text-slate-900"
+                      >
+                        <option value="opened">Open RFIs</option>
+                        <option value="closed">Closed RFIs</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={detailSearch}
+                        onChange={(event) => setDetailSearch(event.target.value)}
+                        placeholder="Search RFI number or subject"
+                        className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm text-slate-900"
+                      />
+                      <select
+                        value={detailTimingFilter}
+                        onChange={(event) => setDetailTimingFilter(event.target.value as 'all' | 'late' | 'this_week')}
+                        aria-label="Timing"
+                        className="rounded-lg border border-slate-300 bg-surface px-3 py-1.5 text-sm text-slate-900"
+                      >
+                        <option value="all">All timing</option>
+                        <option value="late">Late only</option>
+                        <option value="this_week">Due this week</option>
+                      </select>
+                    </div>
+                  ) : null}
+                </div>
+              </header>
 
               {detailsView === 'submittals' ? (
-                <div className="mx-auto mt-6 max-w-6xl">
+                <div className="mt-2">
                   <RegisterView
                     key={selectedProject.project_id}
                     token={token}

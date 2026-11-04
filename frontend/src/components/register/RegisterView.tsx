@@ -25,7 +25,8 @@ type RegisterViewProps = {
   onChanged: () => void
 }
 
-type UsageFilter = 'in_use' | 'not_used' | 'all'
+// 'submitted' = the submittals already logged on this project (the default view).
+type UsageFilter = 'submitted' | 'in_use' | 'not_used' | 'all'
 type BallFilter = '' | 'Subcontractor' | 'GC' | 'reviewer' | 'Closed'
 
 const FIXED_BALLS = new Set(['Subcontractor', 'GC', 'Closed', 'Superseded', ''])
@@ -37,7 +38,7 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
   const [meta, setMeta] = useState<RegisterMeta | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [usage, setUsage] = useState<UsageFilter>('in_use')
+  const [usage, setUsage] = useState<UsageFilter>('submitted')
   const [search, setSearch] = useState('')
   const [discipline, setDiscipline] = useState('')
   const [ball, setBall] = useState<BallFilter>('')
@@ -96,6 +97,7 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
     return items.filter((item) => {
+      if (usage === 'submitted' && !(item.in_use && (item.submissions ?? 0) > 0)) return false
       if (usage === 'in_use' && !item.in_use) return false
       if (usage === 'not_used' && item.in_use) return false
       if (discipline && item.discipline !== discipline) return false
@@ -198,66 +200,64 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
   }
 
   const statusOptions = ['Not submitted', 'In review', ...(meta?.action_codes ?? [])]
+  const selectClass = 'w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900'
+  const submittedCount = counts.inUse - counts.notSubmitted
+  const clearFilters = () => {
+    setSearch('')
+    setDiscipline('')
+    setStatus('')
+    setBall('')
+    setAlertsOnly(false)
+    setUsage('submitted')
+  }
 
   return (
-    <div className="mt-4">
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {[
-          ['In use', counts.inUse, 'neutral'],
-          ['Not submitted', counts.notSubmitted, 'neutral'],
-          ['Open', counts.open, 'info'],
-          ['Closed', counts.closed, 'success'],
-          ['Alerts', counts.alerts, counts.alerts ? 'danger' : 'neutral'],
-          ['Not used', counts.notUsed, 'neutral'],
-        ].map(([label, value, tone]) => (
-          <div key={String(label)} className="rounded-xl border border-slate-200 bg-surface p-3">
-            <p className="text-xs uppercase tracking-[0.12em] text-slate-500">{label}</p>
-            <p className={`mt-1 text-2xl font-semibold ${tone === 'danger' ? 'text-rose-700' : tone === 'success' ? 'text-emerald-700' : tone === 'info' ? 'text-sky-700' : 'text-slate-900'}`}>
-              {value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-end gap-2">
+    <div className="mt-4 grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+      {/* Tools: search, add, filters, export */}
+      <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start" aria-label="Register tools">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Tools</p>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search number, description, sub, notes"
+          placeholder="Search number, description, sub"
           aria-label="Search register"
-          className="min-w-[220px] flex-1 rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
+          className={selectClass}
         />
-        <select value={usage} onChange={(event) => setUsage(event.target.value as UsageFilter)} aria-label="Usage" className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900">
-          <option value="in_use">Used on this project</option>
-          <option value="not_used">Not used</option>
-          <option value="all">All items</option>
-        </select>
-        <select value={discipline} onChange={(event) => setDiscipline(event.target.value)} aria-label="Discipline" className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900">
-          <option value="">All disciplines</option>
-          {(meta?.disciplines ?? []).map((option) => <option key={option}>{option}</option>)}
-        </select>
-        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Status" className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900">
-          <option value="">All statuses</option>
-          {statusOptions.map((option) => <option key={option}>{option}</option>)}
-        </select>
-        <select value={ball} onChange={(event) => setBall(event.target.value as BallFilter)} aria-label="Ball in court" className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900">
-          <option value="">Ball: anyone</option>
-          <option value="Subcontractor">Ball: subcontractor</option>
-          <option value="GC">Ball: GC</option>
-          <option value="reviewer">Ball: reviewer</option>
-          <option value="Closed">Closed</option>
-        </select>
-        <label className="flex items-center gap-2 rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-700">
-          <input type="checkbox" checked={alertsOnly} onChange={(event) => setAlertsOnly(event.target.checked)} />
-          Alerts only
-        </label>
-      </div>
+        <PrimaryButton type="button" className="w-full" onClick={() => setShowNewItem((prev) => !prev)}>
+          {showNewItem ? 'Cancel new submittal' : '+ Add submittal'}
+        </PrimaryButton>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-600">
-          Showing {filteredItems.length} of {items.length} items. Untick an item that doesn&apos;t apply to this project instead of deleting it.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-surface p-3">
+          <p className="text-xs font-semibold text-slate-600">Show</p>
+          <select value={usage} onChange={(event) => setUsage(event.target.value as UsageFilter)} aria-label="Show" className={selectClass}>
+            <option value="submitted">Submitted ({submittedCount})</option>
+            <option value="in_use">All used on this project ({counts.inUse})</option>
+            <option value="not_used">Not used ({counts.notUsed})</option>
+            <option value="all">Everything ({items.length})</option>
+          </select>
+          <select value={discipline} onChange={(event) => setDiscipline(event.target.value)} aria-label="Discipline" className={selectClass}>
+            <option value="">All disciplines</option>
+            {(meta?.disciplines ?? []).map((option) => <option key={option}>{option}</option>)}
+          </select>
+          <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Status" className={selectClass}>
+            <option value="">All statuses</option>
+            {statusOptions.map((option) => <option key={option}>{option}</option>)}
+          </select>
+          <select value={ball} onChange={(event) => setBall(event.target.value as BallFilter)} aria-label="Ball in court" className={selectClass}>
+            <option value="">Ball: anyone</option>
+            <option value="Subcontractor">Ball: subcontractor</option>
+            <option value="GC">Ball: GC</option>
+            <option value="reviewer">Ball: reviewer</option>
+            <option value="Closed">Closed</option>
+          </select>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={alertsOnly} onChange={(event) => setAlertsOnly(event.target.checked)} />
+            Alerts only
+          </label>
+          <button type="button" onClick={clearFilters} className="text-xs font-semibold text-brand-700 hover:underline">Reset filters</button>
+        </div>
+
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-surface p-3">
           <label className="flex items-center gap-2 text-sm text-slate-700">
             Review period
             <input
@@ -265,118 +265,142 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
               onChange={(event) => setReviewDaysInput(event.target.value)}
               inputMode="numeric"
               aria-label="Review period in calendar days"
-              className="w-16 rounded-lg border border-slate-300 bg-surface px-2 py-1.5 text-sm text-slate-900"
+              className="w-14 rounded-lg border border-slate-300 bg-surface px-2 py-1 text-sm text-slate-900"
             />
             days
           </label>
           {reviewDaysInput !== String(register.project.review_days) ? (
-            <PrimaryButton type="button" variant="secondary" onClick={() => void saveReviewDays()}>Save</PrimaryButton>
+            <PrimaryButton type="button" variant="secondary" className="w-full" onClick={() => void saveReviewDays()}>Save review period</PrimaryButton>
           ) : null}
-          <PrimaryButton type="button" variant="secondary" onClick={exportCsv}>Export CSV</PrimaryButton>
-          <PrimaryButton type="button" onClick={() => setShowNewItem((prev) => !prev)}>{showNewItem ? 'Cancel' : 'Add item'}</PrimaryButton>
+          <PrimaryButton type="button" variant="secondary" className="w-full" onClick={exportCsv}>Export CSV</PrimaryButton>
         </div>
-      </div>
+      </aside>
 
-      {showNewItem ? (
-        <form onSubmit={(event) => void handleCreateItem(event)} className="mt-3 rounded-xl border border-slate-200 bg-surface p-4">
-          <p className="text-sm font-semibold text-slate-900">Add an item for this project only</p>
-          <p className="mt-1 text-xs text-slate-500">Number it CSI section + sequence, e.g. 08 44 00-03. To add it to every project, ask an admin to add it to the master list.</p>
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
-            <label className="text-sm text-slate-700">Submittal No.
-              <input required value={newItem.submittal_no} onChange={(e) => setNewItem({ ...newItem, submittal_no: e.target.value })} className={inputClass} />
-            </label>
-            <label className="text-sm text-slate-700">Spec section
-              <input value={newItem.spec_section} onChange={(e) => setNewItem({ ...newItem, spec_section: e.target.value })} className={inputClass} />
-            </label>
-            <label className="text-sm text-slate-700 md:col-span-1">Description
-              <input required value={newItem.description} onChange={(e) => setNewItem({ ...newItem, description: e.target.value })} className={inputClass} />
-            </label>
-            <label className="text-sm text-slate-700">Discipline
-              <select value={newItem.discipline} onChange={(e) => setNewItem({ ...newItem, discipline: e.target.value })} className={inputClass}>
-                <option value="" />
-                {(meta?.disciplines ?? []).map((option) => <option key={option}>{option}</option>)}
-              </select>
-            </label>
-            <label className="text-sm text-slate-700">Type
-              <select value={newItem.submittal_type} onChange={(e) => setNewItem({ ...newItem, submittal_type: e.target.value })} className={inputClass}>
-                <option value="" />
-                {(meta?.submittal_types ?? []).map((option) => <option key={option}>{option}</option>)}
-              </select>
-            </label>
-            <label className="text-sm text-slate-700">Reviewer
-              <select value={newItem.reviewer} onChange={(e) => setNewItem({ ...newItem, reviewer: e.target.value })} className={inputClass}>
-                <option value="" />
-                {(meta?.reviewers ?? []).map((option) => <option key={option}>{option}</option>)}
-              </select>
-            </label>
-          </div>
-          <PrimaryButton type="submit" className="mt-3">Add to register</PrimaryButton>
-        </form>
-      ) : null}
+      <div className="min-w-0">
+        <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-5">
+          {[
+            ['Submitted', submittedCount, 'neutral'],
+            ['Open', counts.open, 'info'],
+            ['Closed', counts.closed, 'success'],
+            ['Alerts', counts.alerts, counts.alerts ? 'danger' : 'neutral'],
+            ['Not submitted yet', counts.notSubmitted, 'neutral'],
+          ].map(([label, value, tone]) => (
+            <div key={String(label)} className="rounded-xl border border-slate-200 bg-surface p-3">
+              <p className="text-xs uppercase tracking-[0.12em] text-slate-500">{label}</p>
+              <p className={`mt-1 text-2xl font-semibold ${tone === 'danger' ? 'text-rose-700' : tone === 'success' ? 'text-emerald-700' : tone === 'info' ? 'text-sky-700' : 'text-slate-900'}`}>
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
 
-      <div className="ui-scroll mt-3 overflow-x-auto">
-        <table className="ui-table min-w-[1300px]">
-          <thead>
-            <tr className="bg-slate-100">
-              {['Used', 'Submittal No.', 'Description', 'Type', 'Reviewer', 'Subcontractor', 'Rev', 'Status', 'Ball in court', 'Days', 'Submit by', 'Alert'].map((header) => (
-                <th key={header} className="border px-3 py-2 text-left">{header}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredItems.map((item) => (
-              <tr
-                key={item.id}
-                onClick={() => onOpenItem(item.id)}
-                className={`cursor-pointer hover:bg-slate-50 ${item.in_use ? '' : 'text-slate-400'}`}
-              >
-                <td className="border px-3 py-2 text-center" onClick={(event) => event.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={item.in_use}
-                    disabled={togglingId === item.id}
-                    onChange={() => void toggleInUse(item)}
-                    aria-label={`Use ${item.submittal_no} on this project`}
-                  />
-                </td>
-                <td className="whitespace-nowrap border px-3 py-2 font-medium">{item.submittal_no}</td>
-                <td className="border px-3 py-2">
-                  <span>{item.description}</span>
-                  <span className="mt-0.5 block text-xs text-slate-500">
-                    {[item.discipline, item.ahj && `AHJ: ${item.ahj}`, item.long_lead && 'Long lead', item.master_item_id ? null : 'Project item'].filter(Boolean).join(' · ')}
-                  </span>
-                </td>
-                <td className="border px-3 py-2 text-sm">{item.submittal_type}</td>
-                <td className="border px-3 py-2 text-sm">{item.reviewer}</td>
-                <td className="border px-3 py-2 text-sm">{item.subcontractor}</td>
-                <td className="border px-3 py-2 text-center">{item.latest_rev ?? ''}</td>
-                <td className="whitespace-nowrap border px-3 py-2">{item.current_status ? <StatusBadge label={item.current_status} tone={statusTone(item.current_status)} /> : null}</td>
-                <td className="whitespace-nowrap border px-3 py-2">{item.ball_in_court ? <StatusBadge label={item.ball_in_court} tone={ballTone(item.ball_in_court)} /> : null}</td>
-                <td className="border px-3 py-2 text-center">{item.days_with_ball ?? ''}</td>
-                <td className="whitespace-nowrap border px-3 py-2 text-sm">{formatDate(item.submit_by)}</td>
-                <td className="whitespace-nowrap border px-3 py-2">{item.alert ? <StatusBadge label={item.alert} tone={alertTone(item.alert)} /> : null}</td>
+        {showNewItem ? (
+          <form onSubmit={(event) => void handleCreateItem(event)} className="mt-3 rounded-xl border border-slate-200 bg-surface p-4">
+            <p className="text-sm font-semibold text-slate-900">Add a submittal for this project only</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Number it CSI section + sequence, e.g. 08 44 00-03. To log a submission for an item already on the list, open it from the table. To add it to every project, ask an admin to add it to the master list.
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <label className="text-sm text-slate-700">Submittal No.
+                <input required value={newItem.submittal_no} onChange={(e) => setNewItem({ ...newItem, submittal_no: e.target.value })} className={inputClass} />
+              </label>
+              <label className="text-sm text-slate-700">Spec section
+                <input value={newItem.spec_section} onChange={(e) => setNewItem({ ...newItem, spec_section: e.target.value })} className={inputClass} />
+              </label>
+              <label className="text-sm text-slate-700 md:col-span-1">Description
+                <input required value={newItem.description} onChange={(e) => setNewItem({ ...newItem, description: e.target.value })} className={inputClass} />
+              </label>
+              <label className="text-sm text-slate-700">Discipline
+                <select value={newItem.discipline} onChange={(e) => setNewItem({ ...newItem, discipline: e.target.value })} className={inputClass}>
+                  <option value="" />
+                  {(meta?.disciplines ?? []).map((option) => <option key={option}>{option}</option>)}
+                </select>
+              </label>
+              <label className="text-sm text-slate-700">Type
+                <select value={newItem.submittal_type} onChange={(e) => setNewItem({ ...newItem, submittal_type: e.target.value })} className={inputClass}>
+                  <option value="" />
+                  {(meta?.submittal_types ?? []).map((option) => <option key={option}>{option}</option>)}
+                </select>
+              </label>
+              <label className="text-sm text-slate-700">Reviewer
+                <select value={newItem.reviewer} onChange={(e) => setNewItem({ ...newItem, reviewer: e.target.value })} className={inputClass}>
+                  <option value="" />
+                  {(meta?.reviewers ?? []).map((option) => <option key={option}>{option}</option>)}
+                </select>
+              </label>
+            </div>
+            <PrimaryButton type="submit" className="mt-3">Add to register</PrimaryButton>
+          </form>
+        ) : null}
+
+        <p className="mt-3 text-sm text-slate-600">
+          Showing {filteredItems.length} of {items.length} items.
+          {usage === 'submitted'
+            ? ' To log the first submission of an item, show "All used on this project" and open it.'
+            : ' Untick an item that doesn’t apply to this project instead of deleting it.'}
+        </p>
+
+        <div className="ui-scroll mt-2 overflow-x-auto">
+          <table className="ui-table min-w-[1200px]">
+            <thead>
+              <tr className="bg-slate-100">
+                {['Used', 'Submittal No.', 'Description', 'Type', 'Reviewer', 'Subcontractor', 'Rev', 'Status', 'Ball in court', 'Days', 'Submit by', 'Alert'].map((header) => (
+                  <th key={header} className="border px-3 py-2 text-left">{header}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {filteredItems.length === 0 ? (
-        <div className="mt-3">
-          <EmptyState
-            title="No items match your filters"
-            description="Try clearing the search or filters."
-            ctaLabel="Clear filters"
-            onCta={() => {
-              setSearch('')
-              setDiscipline('')
-              setStatus('')
-              setBall('')
-              setAlertsOnly(false)
-              setUsage('in_use')
-            }}
-          />
+            </thead>
+            <tbody>
+              {filteredItems.map((item) => (
+                <tr
+                  key={item.id}
+                  onClick={() => onOpenItem(item.id)}
+                  className={`cursor-pointer hover:bg-slate-50 ${item.in_use ? '' : 'text-slate-400'}`}
+                >
+                  <td className="border px-3 py-2 text-center" onClick={(event) => event.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={item.in_use}
+                      disabled={togglingId === item.id}
+                      onChange={() => void toggleInUse(item)}
+                      aria-label={`Use ${item.submittal_no} on this project`}
+                    />
+                  </td>
+                  <td className="whitespace-nowrap border px-3 py-2 font-medium">{item.submittal_no}</td>
+                  <td className="border px-3 py-2">
+                    <span>{item.description}</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">
+                      {[item.discipline, item.ahj && `AHJ: ${item.ahj}`, item.long_lead && 'Long lead', item.master_item_id ? null : 'Project item'].filter(Boolean).join(' · ')}
+                    </span>
+                  </td>
+                  <td className="border px-3 py-2 text-sm">{item.submittal_type}</td>
+                  <td className="border px-3 py-2 text-sm">{item.reviewer}</td>
+                  <td className="border px-3 py-2 text-sm">{item.subcontractor}</td>
+                  <td className="border px-3 py-2 text-center">{item.latest_rev ?? ''}</td>
+                  <td className="whitespace-nowrap border px-3 py-2">{item.current_status ? <StatusBadge label={item.current_status} tone={statusTone(item.current_status)} /> : null}</td>
+                  <td className="whitespace-nowrap border px-3 py-2">{item.ball_in_court ? <StatusBadge label={item.ball_in_court} tone={ballTone(item.ball_in_court)} /> : null}</td>
+                  <td className="border px-3 py-2 text-center">{item.days_with_ball ?? ''}</td>
+                  <td className="whitespace-nowrap border px-3 py-2 text-sm">{formatDate(item.submit_by)}</td>
+                  <td className="whitespace-nowrap border px-3 py-2">{item.alert ? <StatusBadge label={item.alert} tone={alertTone(item.alert)} /> : null}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ) : null}
+        {filteredItems.length === 0 ? (
+          <div className="mt-3">
+            {usage === 'submitted' && !search && !discipline && !status && !ball && !alertsOnly ? (
+              <EmptyState
+                title="Nothing submitted yet"
+                description="Show every item used on this project and open one to log its first submission, or add a new submittal."
+                ctaLabel="Show all items"
+                onCta={() => setUsage('in_use')}
+              />
+            ) : (
+              <EmptyState title="No items match your filters" description="Try clearing the search or filters." ctaLabel="Reset filters" onCta={clearFilters} />
+            )}
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
