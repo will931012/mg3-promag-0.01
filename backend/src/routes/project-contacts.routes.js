@@ -1,8 +1,9 @@
 import { Router } from "express";
 import pool from "../db/pool.js";
 import { CONTACT_CATEGORIES, DEFAULT_CONTACT_COMPANIES } from "../constants/submittal-register.js";
+import { loadContactRoles } from "../db/contacts-schema.js";
 
-// Project contacts, laid out like the contacts sheet: every listed role/trade always shows as a row,
+// Project contacts, laid out like the contacts sheet: every role/trade in contact_roles always shows as a row,
 // and only rows someone filled in are stored. Extra rows (a trade that isn't listed) can be added.
 
 const router = Router();
@@ -26,8 +27,12 @@ const emptyRow = (category, role) => ({
   custom: false
 });
 
-export const buildContactSheet = (storedRows) =>
-  Object.entries(CONTACT_CATEGORIES).map(([key, { title, roles }]) => {
+/**
+ * `rolesByCategory` is { design_team: ["Architect", ...], contractors: [...] } from contact_roles.
+ */
+export const buildContactSheet = (storedRows, rolesByCategory) =>
+  Object.entries(CONTACT_CATEGORIES).map(([key, { title }]) => {
+    const roles = rolesByCategory[key] ?? [];
     const stored = storedRows.filter((row) => row.category === key);
     const byRole = new Map(stored.map((row) => [row.role, row]));
     const toRow = (row, custom) => ({ id: Number(row.id), role: row.role, ...Object.fromEntries(CONTACT_FIELDS.map((f) => [f, row[f]])), custom });
@@ -43,7 +48,9 @@ router.get("/:projectId", async (req, res) => {
       `SELECT id, category, role, ${CONTACT_FIELDS.join(", ")} FROM project_contacts WHERE project_id = $1 ORDER BY id`,
       [req.params.projectId]
     );
-    return res.json({ project_id: req.params.projectId, categories: buildContactSheet(rows) });
+    const roles = await loadContactRoles();
+    const roleNames = Object.fromEntries(Object.entries(roles).map(([key, list]) => [key, list.map((role) => role.name)]));
+    return res.json({ project_id: req.params.projectId, categories: buildContactSheet(rows, roleNames) });
   } catch (error) {
     console.error("Load project contacts failed:", error?.message || error);
     return res.status(500).json({ detail: "Load project contacts failed." });
@@ -69,7 +76,8 @@ router.put("/:projectId", async (req, res) => {
       [req.params.projectId, category, role, ...values]
     );
     const saved = rows[0];
-    return res.json({ ...saved, id: Number(saved.id), custom: !CONTACT_CATEGORIES[category].roles.includes(role) });
+    const roles = await loadContactRoles();
+    return res.json({ ...saved, id: Number(saved.id), custom: !roles[category].some((item) => item.name === role) });
   } catch (error) {
     console.error("Save project contact failed:", error?.message || error);
     return res.status(500).json({ detail: "Save project contact failed." });

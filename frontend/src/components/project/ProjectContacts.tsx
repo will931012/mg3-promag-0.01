@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import PrimaryButton from '../common/PrimaryButton'
 import { cellInputClass } from '../register/registerUi'
+import { fetchDirectoryContacts } from '../../services/contactsService'
+import type { DirectoryContact } from '../../services/contactsService'
 import { responseDetail } from '../../services/registerService'
 import {
   deleteProjectContact,
@@ -46,6 +48,34 @@ export default function ProjectContacts({ token, projectId, setMessage }: Projec
   const [draft, setDraft] = useState<ProjectContactFields>(emptyFields)
   const [saving, setSaving] = useState(false)
   const [newRole, setNewRole] = useState<{ category: ContactCategoryKey; role: string } | null>(null)
+
+  const [directory, setDirectory] = useState<DirectoryContact[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchDirectoryContacts(token).then((rows) => {
+      if (!cancelled) setDirectory(rows)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [token])
+
+  // Directory companies for a row: the same role first, then the rest of the group.
+  const directoryOptions = (category: ContactCategoryKey, role: string) => {
+    const inCategory = directory.filter((item) => item.category === category && item.company)
+    const sameRole = inCategory.filter((item) => item.role === role)
+    return sameRole.length ? sameRole : inCategory
+  }
+
+  const setCompany = (category: ContactCategoryKey, role: string, company: string) => {
+    const match = directoryOptions(category, role).find((item) => item.company === company)
+    setDraft((prev) =>
+      match && !prev.contact && !prev.email && !prev.phone
+        ? { ...prev, company, contact: match.contact, email: match.email, phone: match.phone }
+        : { ...prev, company }
+    )
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -131,6 +161,13 @@ export default function ProjectContacts({ token, projectId, setMessage }: Projec
 
       {open ? (
         <div className="mt-3 space-y-4">
+          {editing ? (
+            <datalist id="project-contact-companies">
+              {directoryOptions(editing.category, editing.role).map((item) => (
+                <option key={item.id} value={item.company}>{[item.contact, item.role].filter(Boolean).join(' · ')}</option>
+              ))}
+            </datalist>
+          ) : null}
           {categories.map((category) => (
             <div key={category.key}>
               <div className="flex items-center justify-between gap-2">
@@ -176,8 +213,13 @@ export default function ProjectContacts({ token, projectId, setMessage }: Projec
                               {isEditing ? (
                                 <input
                                   type={field.type ?? 'text'}
+                                  list={field.key === 'company' ? 'project-contact-companies' : undefined}
                                   value={draft[field.key]}
-                                  onChange={(event) => setDraft({ ...draft, [field.key]: event.target.value })}
+                                  onChange={(event) =>
+                                    field.key === 'company'
+                                      ? setCompany(category.key, row.role, event.target.value)
+                                      : setDraft({ ...draft, [field.key]: event.target.value })
+                                  }
                                   onKeyDown={(event) => {
                                     if (event.key === 'Enter') void save(category.key, row.role)
                                     if (event.key === 'Escape') setEditing(null)

@@ -1,5 +1,6 @@
 import pool from "./pool.js";
 import { ensureSubmittalRegisterSchema } from "./submittal-register-schema.js";
+import { ensureContactsSchema } from "./contacts-schema.js";
 
 const ensureRuntimeSchemaSql = `
 CREATE TABLE IF NOT EXISTS contractors (
@@ -35,4 +36,5 @@ CREATE TABLE IF NOT EXISTS project_contacts (
 export const ensureRuntimeSchema = async () => {
   await pool.query(ensureRuntimeSchemaSql);
   await ensureSubmittalRegisterSchema();
+  await ensureContactsSchema();
 };

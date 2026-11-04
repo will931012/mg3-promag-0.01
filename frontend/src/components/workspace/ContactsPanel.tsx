@@ -1,442 +1,326 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-import { EOR_TYPES } from '../../app/eorTypes'
-import type { EorType } from '../../app/eorTypes'
-import {
-  createAor,
-  createContractor,
-  createEor,
-  createSubcontractor,
-  deleteAor,
-  deleteContractor,
-  deleteEor,
-  deleteSubcontractor,
-  fetchAors,
-  fetchContractors,
-  fetchEors,
-  fetchSubcontractors,
-  updateAor,
-  updateContractor,
-  updateEor,
-  updateSubcontractor,
-} from '../../services/workspaceService'
-import type { AorRecord, ContractorRecord, EorRecord, SubcontractorRecord } from '../../types/workspace'
-import EmptyState from '../common/EmptyState'
 import PrimaryButton from '../common/PrimaryButton'
 import SectionHeader from '../common/SectionHeader'
+import { cellInputClass, inputClass } from '../register/registerUi'
+import { responseDetail } from '../../services/registerService'
+import {
+  CONTACT_CATEGORY_TITLES,
+  CONTACT_ROLE_LABELS,
+  createDirectoryContact,
+  deleteContactRole,
+  deleteDirectoryContact,
+  emptyContactRoles,
+  fetchContactRoles,
+  fetchDirectoryContacts,
+  updateDirectoryContact,
+} from '../../services/contactsService'
+import type { ContactRoles, DirectoryContact, DirectoryContactInput } from '../../services/contactsService'
+import type { ContactCategoryKey } from '../../services/projectContactsService'
 
 type ContactsPanelProps = {
   token: string
   setMessage: (message: string) => void
 }
 
-type NamedRecord = { id: number; name: string }
+const CATEGORIES: ContactCategoryKey[] = ['design_team', 'contractors']
+const FIELDS = [
+  { key: 'company', label: 'Company' },
+  { key: 'contact', label: 'Contact' },
+  { key: 'email', label: 'Email', type: 'email' },
+  { key: 'phone', label: 'Phone', type: 'tel' },
+  { key: 'notes', label: 'Notes' },
+] as const
 
-type ContactSectionProps<T extends NamedRecord> = {
-  title: string
-  subtitle: string
-  items: T[]
-  search: string
-  onSearchChange: (value: string) => void
-  editingId: number | null
-  editingName: string
-  onEditStart: (item: T) => void
-  onEditCancel: () => void
-  onEditSave: (id: number) => Promise<void>
-  onDelete: (id: number) => Promise<void>
-  renderName?: (item: T) => string
-  form: React.ReactNode
-}
+const emptyInput = (category: ContactCategoryKey, role = ''): DirectoryContactInput => ({
+  category,
+  role,
+  company: '',
+  contact: '',
+  email: '',
+  phone: '',
+  notes: '',
+})
 
-function ContactSection<T extends NamedRecord>({
-  title,
-  subtitle,
-  items,
-  search,
-  onSearchChange,
-  editingId,
-  editingName,
-  onEditStart,
-  onEditCancel,
-  onEditSave,
-  onDelete,
-  renderName,
-  form,
-}: ContactSectionProps<T>) {
-  return (
-    <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
-        <input
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder={`Search ${title.toLowerCase()}`}
-          className="min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        />
-      </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
-        <div className="ui-scroll max-h-[320px] overflow-auto rounded-lg border border-slate-200">
-          <table className="ui-table min-w-full">
-            <thead>
-              <tr className="bg-slate-100">
-                <th className="border px-3 py-2 text-left">ID</th>
-                <th className="border px-3 py-2 text-left">Name</th>
-                <th className="border px-3 py-2 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  <td className="border px-3 py-2">{item.id}</td>
-                  <td className="border px-3 py-2">
-                    {editingId === item.id ? (
-                      <input value={editingName} onChange={() => undefined} readOnly className="w-full rounded border border-slate-300 px-2 py-1 text-sm" />
-                    ) : (
-                      renderName ? renderName(item) : item.name
-                    )}
-                  </td>
-                  <td className="border px-3 py-2">
-                    <div className="flex gap-2">
-                      {editingId === item.id ? (
-                        <>
-                          <button type="button" onClick={() => void onEditSave(item.id)} className="rounded bg-emerald-600 px-2 py-1 text-xs text-white">Save</button>
-                          <button type="button" onClick={onEditCancel} className="rounded bg-slate-200 px-2 py-1 text-xs">Cancel</button>
-                        </>
-                      ) : (
-                        <>
-                          <button type="button" onClick={() => onEditStart(item)} className="rounded bg-slate-200 px-2 py-1 text-xs">Edit</button>
-                          <button type="button" onClick={() => void onDelete(item.id)} className="rounded bg-rose-600 px-2 py-1 text-xs text-white">Delete</button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="border px-3 py-8">
-                    <EmptyState title={`No ${title.toLowerCase()} found`} description="Create one using the form on the right." />
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          {form}
-        </div>
-      </div>
-    </article>
-  )
-}
+// One line of the sheet: a contact, or an empty role waiting to be filled.
+type SheetRow = { kind: 'contact'; contact: DirectoryContact } | { kind: 'empty'; role: string; roleId: number }
 
 export default function ContactsPanel({ token, setMessage }: ContactsPanelProps) {
-  const [aors, setAors] = useState<AorRecord[]>([])
-  const [eors, setEors] = useState<EorRecord[]>([])
-  const [contractors, setContractors] = useState<ContractorRecord[]>([])
-  const [subcontractors, setSubcontractors] = useState<SubcontractorRecord[]>([])
-  const [aorName, setAorName] = useState('')
-  const [eorName, setEorName] = useState('')
-  const [eorType, setEorType] = useState<EorType>('Civil EOR')
-  const [contractorName, setContractorName] = useState('')
-  const [subcontractorName, setSubcontractorName] = useState('')
-  const [aorSearch, setAorSearch] = useState('')
-  const [eorSearch, setEorSearch] = useState('')
-  const [contractorSearch, setContractorSearch] = useState('')
-  const [subcontractorSearch, setSubcontractorSearch] = useState('')
-  const [editingAorId, setEditingAorId] = useState<number | null>(null)
-  const [editingAorName, setEditingAorName] = useState('')
-  const [editingEorId, setEditingEorId] = useState<number | null>(null)
-  const [editingEorName, setEditingEorName] = useState('')
-  const [editingEorType, setEditingEorType] = useState<EorType>('Civil EOR')
-  const [editingContractorId, setEditingContractorId] = useState<number | null>(null)
-  const [editingContractorName, setEditingContractorName] = useState('')
-  const [editingSubcontractorId, setEditingSubcontractorId] = useState<number | null>(null)
-  const [editingSubcontractorName, setEditingSubcontractorName] = useState('')
-
-  const loadContacts = async () => {
-    const [nextAors, nextEors, nextContractors, nextSubcontractors] = await Promise.all([
-      fetchAors(token),
-      fetchEors(token),
-      fetchContractors(token),
-      fetchSubcontractors(token),
-    ])
-    setAors(nextAors)
-    setEors(nextEors)
-    setContractors(nextContractors)
-    setSubcontractors(nextSubcontractors)
-  }
+  const [roles, setRoles] = useState<ContactRoles>(emptyContactRoles)
+  const [contacts, setContacts] = useState<DirectoryContact[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [addDraft, setAddDraft] = useState<DirectoryContactInput>(emptyInput('design_team'))
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editDraft, setEditDraft] = useState<DirectoryContactInput | null>(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    void loadContacts()
+    let cancelled = false
+    void Promise.all([fetchContactRoles(token), fetchDirectoryContacts(token)]).then(([nextRoles, nextContacts]) => {
+      if (cancelled) return
+      setRoles(nextRoles)
+      setContacts(nextContacts)
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [token])
 
-  const filteredAors = useMemo(() => aors.filter((item) => item.name.toLowerCase().includes(aorSearch.trim().toLowerCase())), [aors, aorSearch])
-  const filteredEors = useMemo(() => eors.filter((item) => `${item.type} ${item.name}`.toLowerCase().includes(eorSearch.trim().toLowerCase())), [eors, eorSearch])
-  const filteredContractors = useMemo(() => contractors.filter((item) => item.name.toLowerCase().includes(contractorSearch.trim().toLowerCase())), [contractors, contractorSearch])
-  const filteredSubcontractors = useMemo(() => subcontractors.filter((item) => item.name.toLowerCase().includes(subcontractorSearch.trim().toLowerCase())), [subcontractors, subcontractorSearch])
+  const reloadRoles = async () => setRoles(await fetchContactRoles(token))
 
-  const handleCreateAor = async (event: FormEvent) => {
-    event.preventDefault()
-    const res = await createAor(token, { name: aorName.trim() })
-    if (!res.ok || !res.data) return setMessage('Failed to create AOR.')
-    setAorName('')
-    setMessage('AOR created.')
-    await loadContacts()
+  const query = search.trim().toLowerCase()
+  const matches = (contact: DirectoryContact) =>
+    !query || `${contact.role} ${contact.company} ${contact.contact} ${contact.email} ${contact.phone} ${contact.notes}`.toLowerCase().includes(query)
+
+  // Same order as the sheet: every role in order, its contacts (or one empty line), then contacts without a listed role.
+  const sheets = useMemo(() => {
+    return CATEGORIES.map((category) => {
+      const inCategory = contacts.filter((contact) => contact.category === category)
+      const rows: SheetRow[] = []
+      roles[category].forEach((role) => {
+        const forRole = inCategory.filter((contact) => contact.role === role.name)
+        if (forRole.length) forRole.filter(matches).forEach((contact) => rows.push({ kind: 'contact', contact }))
+        else if (!query || role.name.toLowerCase().includes(query)) rows.push({ kind: 'empty', role: role.name, roleId: role.id })
+      })
+      const listed = new Set(roles[category].map((role) => role.name))
+      inCategory.filter((contact) => !listed.has(contact.role) && matches(contact)).forEach((contact) => rows.push({ kind: 'contact', contact }))
+      return { category, rows }
+    })
+  }, [contacts, roles, query]) // `matches` only depends on `query`
+
+  const openAdd = (category: ContactCategoryKey, role = '') => {
+    setAddDraft(emptyInput(category, role))
+    setShowAdd(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleCreateEor = async (event: FormEvent) => {
+  const handleAdd = async (event: FormEvent) => {
     event.preventDefault()
-    const res = await createEor(token, { type: eorType, name: eorName.trim() })
-    if (!res.ok || !res.data) return setMessage('Failed to create EOR.')
-    setEorName('')
-    setMessage('EOR created.')
-    await loadContacts()
+    setSaving(true)
+    const res = await createDirectoryContact(token, addDraft)
+    setSaving(false)
+    if (!res.ok || !res.data) return setMessage(responseDetail(res.data, 'Failed to add contact.'))
+    setContacts((prev) => [...prev, res.data as DirectoryContact])
+    await reloadRoles()
+    setShowAdd(false)
+    setMessage(`Added ${res.data.contact || res.data.company}.`)
   }
 
-  const handleCreateContractor = async (event: FormEvent) => {
-    event.preventDefault()
-    const res = await createContractor(token, { name: contractorName.trim() })
-    if (!res.ok || !res.data) return setMessage('Failed to create contractor.')
-    setContractorName('')
-    setMessage('Contractor created.')
-    await loadContacts()
+  const handleSave = async (id: number) => {
+    if (!editDraft) return
+    setSaving(true)
+    const res = await updateDirectoryContact(token, id, editDraft)
+    setSaving(false)
+    if (!res.ok || !res.data) return setMessage(responseDetail(res.data, 'Failed to save contact.'))
+    setContacts((prev) => prev.map((contact) => (contact.id === id ? (res.data as DirectoryContact) : contact)))
+    await reloadRoles()
+    setEditingId(null)
+    setMessage('Contact saved.')
   }
 
-  const handleCreateSubcontractor = async (event: FormEvent) => {
-    event.preventDefault()
-    const res = await createSubcontractor(token, { name: subcontractorName.trim() })
-    if (!res.ok || !res.data) return setMessage('Failed to create subcontractor.')
-    setSubcontractorName('')
-    setMessage('Subcontractor created.')
-    await loadContacts()
+  const handleDelete = async (contact: DirectoryContact) => {
+    if (!confirm(`Delete ${contact.contact || contact.company}${contact.role ? ` (${contact.role})` : ''}?`)) return
+    const res = await deleteDirectoryContact(token, contact.id)
+    if (!res.ok) return setMessage(responseDetail(res.data, 'Failed to delete contact.'))
+    setContacts((prev) => prev.filter((item) => item.id !== contact.id))
+    setMessage('Contact deleted.')
   }
 
-  const handleDelete = async (label: string, action: () => Promise<{ ok: boolean }>) => {
-    if (!confirm(`Delete ${label}?`)) return
-    const res = await action()
-    if (!res.ok) return setMessage(`Failed to delete ${label}.`)
-    setMessage(`${label} deleted.`)
-    await loadContacts()
+  const handleRemoveRole = async (roleId: number, name: string) => {
+    if (!confirm(`Remove "${name}" from the list of roles?`)) return
+    const res = await deleteContactRole(token, roleId)
+    if (!res.ok || !res.data) return setMessage(responseDetail(res.data, 'Failed to remove role.'))
+    setRoles(res.data)
+    setMessage(`Removed ${name}.`)
   }
 
   return (
-    <section className="ui-panel slide-in space-y-4">
+    <section className="ui-panel slide-in">
       <SectionHeader
         title="Contacts"
-        subtitle="Central directory for AORs, EORs, contractors and subcontractors used across the workspace."
+        subtitle="Design team, general contractor and subcontractors. Roles come from the database; type a new one to add it."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search contacts"
+              aria-label="Search contacts"
+              className="rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900"
+            />
+            <PrimaryButton type="button" onClick={() => (showAdd ? setShowAdd(false) : openAdd('design_team'))}>
+              {showAdd ? 'Cancel' : '+ Add contact'}
+            </PrimaryButton>
+          </div>
+        }
       />
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">AORs</h3>
-              <p className="mt-1 text-sm text-slate-500">Architects of record available for project assignments.</p>
-            </div>
-            <input value={aorSearch} onChange={(event) => setAorSearch(event.target.value)} placeholder="Search aors" className="min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      {showAdd ? (
+        <form onSubmit={(event) => void handleAdd(event)} className="mt-4 rounded-xl border border-slate-200 bg-surface p-4">
+          <p className="text-sm font-semibold text-slate-900">Add contact</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <label className="text-sm text-slate-700">Group
+              <select
+                value={addDraft.category}
+                onChange={(e) => setAddDraft({ ...addDraft, category: e.target.value as ContactCategoryKey, role: '' })}
+                className={inputClass}
+              >
+                {CATEGORIES.map((category) => <option key={category} value={category}>{CONTACT_CATEGORY_TITLES[category]}</option>)}
+              </select>
+            </label>
+            <label className="text-sm text-slate-700">{CONTACT_ROLE_LABELS[addDraft.category]}
+              <input
+                list={`contact-roles-${addDraft.category}`}
+                value={addDraft.role}
+                onChange={(e) => setAddDraft({ ...addDraft, role: e.target.value })}
+                placeholder="Start typing to see suggestions"
+                autoFocus
+                className={inputClass}
+              />
+            </label>
+            {FIELDS.map((field) => (
+              <label key={field.key} className={`text-sm text-slate-700 ${field.key === 'notes' ? 'md:col-span-2' : ''}`}>{field.label}
+                <input
+                  type={'type' in field ? field.type : 'text'}
+                  value={addDraft[field.key]}
+                  onChange={(e) => setAddDraft({ ...addDraft, [field.key]: e.target.value })}
+                  className={inputClass}
+                />
+              </label>
+            ))}
           </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
-            <div className="ui-scroll max-h-[320px] overflow-auto rounded-lg border border-slate-200">
-              <table className="ui-table min-w-full">
-                <thead><tr className="bg-slate-100"><th className="border px-3 py-2 text-left">ID</th><th className="border px-3 py-2 text-left">Name</th><th className="border px-3 py-2 text-left">Actions</th></tr></thead>
-                <tbody>
-                  {filteredAors.map((item) => (
-                    <tr key={item.id}>
-                      <td className="border px-3 py-2">{item.id}</td>
-                      <td className="border px-3 py-2">
-                        {editingAorId === item.id ? <input value={editingAorName} onChange={(event) => setEditingAorName(event.target.value)} className="w-full rounded border border-slate-300 px-2 py-1 text-sm" /> : item.name}
-                      </td>
-                      <td className="border px-3 py-2">
-                        <div className="flex gap-2">
-                          {editingAorId === item.id ? (
-                            <>
-                              <button type="button" onClick={async () => { const res = await updateAor(token, item.id, { name: editingAorName.trim() }); if (!res.ok) return setMessage('Failed to update AOR.'); setEditingAorId(null); setEditingAorName(''); setMessage('AOR updated.'); await loadContacts() }} className="rounded bg-emerald-600 px-2 py-1 text-xs text-white">Save</button>
-                              <button type="button" onClick={() => { setEditingAorId(null); setEditingAorName('') }} className="rounded bg-slate-200 px-2 py-1 text-xs">Cancel</button>
-                            </>
-                          ) : (
-                            <>
-                              <button type="button" onClick={() => { setEditingAorId(item.id); setEditingAorName(item.name) }} className="rounded bg-slate-200 px-2 py-1 text-xs">Edit</button>
-                              <button type="button" onClick={() => void handleDelete('AOR', () => deleteAor(token, item.id))} className="rounded bg-rose-600 px-2 py-1 text-xs text-white">Delete</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredAors.length === 0 ? <tr><td colSpan={3} className="border px-3 py-8"><EmptyState title="No aors found" description="Create one using the form on the right." /></td></tr> : null}
-                </tbody>
-              </table>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <form onSubmit={handleCreateAor} className="space-y-3">
-                <h4 className="text-sm font-semibold text-slate-900">Add AOR</h4>
-                <input value={aorName} onChange={(event) => setAorName(event.target.value)} placeholder="AOR name" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                <PrimaryButton type="submit">Save AOR</PrimaryButton>
-              </form>
-            </div>
-          </div>
-        </article>
+          {addDraft.role && !roles[addDraft.category].some((role) => role.name.toLowerCase() === addDraft.role.trim().toLowerCase()) ? (
+            <p className="mt-2 text-xs text-slate-500">&quot;{addDraft.role.trim()}&quot; is a new {addDraft.category === 'design_team' ? 'role' : 'trade'}; it will be added to the list.</p>
+          ) : null}
+          <PrimaryButton type="submit" className="mt-3" disabled={saving}>{saving ? 'Saving…' : 'Add contact'}</PrimaryButton>
+        </form>
+      ) : null}
 
-        <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">EORs</h3>
-              <p className="mt-1 text-sm text-slate-500">Engineers of record organized by discipline.</p>
-            </div>
-            <input value={eorSearch} onChange={(event) => setEorSearch(event.target.value)} placeholder="Search eors" className="min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
-            <div className="ui-scroll max-h-[320px] overflow-auto rounded-lg border border-slate-200">
-              <table className="ui-table min-w-full">
-                <thead><tr className="bg-slate-100"><th className="border px-3 py-2 text-left">ID</th><th className="border px-3 py-2 text-left">Name</th><th className="border px-3 py-2 text-left">Actions</th></tr></thead>
-                <tbody>
-                  {filteredEors.map((item) => (
-                    <tr key={item.id}>
-                      <td className="border px-3 py-2">{item.id}</td>
-                      <td className="border px-3 py-2">
-                        {editingEorId === item.id ? (
-                          <div className="space-y-2">
-                            <select value={editingEorType} onChange={(event) => setEditingEorType(event.target.value as EorType)} className="w-full rounded border border-slate-300 px-2 py-1 text-sm">
-                              {EOR_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-                            </select>
-                            <input value={editingEorName} onChange={(event) => setEditingEorName(event.target.value)} className="w-full rounded border border-slate-300 px-2 py-1 text-sm" />
-                          </div>
-                        ) : `${item.type}: ${item.name}`}
-                      </td>
-                      <td className="border px-3 py-2">
-                        <div className="flex gap-2">
-                          {editingEorId === item.id ? (
-                            <>
-                              <button type="button" onClick={async () => { const res = await updateEor(token, item.id, { type: editingEorType, name: editingEorName.trim() }); if (!res.ok) return setMessage('Failed to update EOR.'); setEditingEorId(null); setEditingEorName(''); setMessage('EOR updated.'); await loadContacts() }} className="rounded bg-emerald-600 px-2 py-1 text-xs text-white">Save</button>
-                              <button type="button" onClick={() => { setEditingEorId(null); setEditingEorName('') }} className="rounded bg-slate-200 px-2 py-1 text-xs">Cancel</button>
-                            </>
-                          ) : (
-                            <>
-                              <button type="button" onClick={() => { setEditingEorId(item.id); setEditingEorName(item.name); setEditingEorType(item.type) }} className="rounded bg-slate-200 px-2 py-1 text-xs">Edit</button>
-                              <button type="button" onClick={() => void handleDelete('EOR', () => deleteEor(token, item.id))} className="rounded bg-rose-600 px-2 py-1 text-xs text-white">Delete</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredEors.length === 0 ? <tr><td colSpan={3} className="border px-3 py-8"><EmptyState title="No eors found" description="Create one using the form on the right." /></td></tr> : null}
-                </tbody>
-              </table>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <form onSubmit={handleCreateEor} className="space-y-3">
-                <h4 className="text-sm font-semibold text-slate-900">Add EOR</h4>
-                <select value={eorType} onChange={(event) => setEorType(event.target.value as EorType)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                  {EOR_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-                </select>
-                <input value={eorName} onChange={(event) => setEorName(event.target.value)} placeholder="EOR name" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                <PrimaryButton type="submit">Save EOR</PrimaryButton>
-              </form>
-            </div>
-          </div>
-        </article>
+      {CATEGORIES.map((category) => (
+        <datalist key={category} id={`contact-roles-${category}`}>
+          {roles[category].map((role) => <option key={role.id} value={role.name} />)}
+        </datalist>
+      ))}
 
-        <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Contractors</h3>
-              <p className="mt-1 text-sm text-slate-500">General contractors referenced from RFIs and submittals.</p>
-            </div>
-            <input value={contractorSearch} onChange={(event) => setContractorSearch(event.target.value)} placeholder="Search contractors" className="min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
-            <div className="ui-scroll max-h-[320px] overflow-auto rounded-lg border border-slate-200">
-              <table className="ui-table min-w-full">
-                <thead><tr className="bg-slate-100"><th className="border px-3 py-2 text-left">ID</th><th className="border px-3 py-2 text-left">Name</th><th className="border px-3 py-2 text-left">Actions</th></tr></thead>
-                <tbody>
-                  {filteredContractors.map((item) => (
-                    <tr key={item.id}>
-                      <td className="border px-3 py-2">{item.id}</td>
-                      <td className="border px-3 py-2">{editingContractorId === item.id ? <input value={editingContractorName} onChange={(event) => setEditingContractorName(event.target.value)} className="w-full rounded border border-slate-300 px-2 py-1 text-sm" /> : item.name}</td>
-                      <td className="border px-3 py-2">
-                        <div className="flex gap-2">
-                          {editingContractorId === item.id ? (
-                            <>
-                              <button type="button" onClick={async () => { const res = await updateContractor(token, item.id, { name: editingContractorName.trim() }); if (!res.ok) return setMessage('Failed to update contractor.'); setEditingContractorId(null); setEditingContractorName(''); setMessage('Contractor updated.'); await loadContacts() }} className="rounded bg-emerald-600 px-2 py-1 text-xs text-white">Save</button>
-                              <button type="button" onClick={() => { setEditingContractorId(null); setEditingContractorName('') }} className="rounded bg-slate-200 px-2 py-1 text-xs">Cancel</button>
-                            </>
-                          ) : (
-                            <>
-                              <button type="button" onClick={() => { setEditingContractorId(item.id); setEditingContractorName(item.name) }} className="rounded bg-slate-200 px-2 py-1 text-xs">Edit</button>
-                              <button type="button" onClick={() => void handleDelete('Contractor', () => deleteContractor(token, item.id))} className="rounded bg-rose-600 px-2 py-1 text-xs text-white">Delete</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredContractors.length === 0 ? <tr><td colSpan={3} className="border px-3 py-8"><EmptyState title="No contractors found" description="Create one using the form on the right." /></td></tr> : null}
-                </tbody>
-              </table>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <form onSubmit={handleCreateContractor} className="space-y-3">
-                <h4 className="text-sm font-semibold text-slate-900">Add Contractor</h4>
-                <input value={contractorName} onChange={(event) => setContractorName(event.target.value)} placeholder="Contractor name" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                <PrimaryButton type="submit">Save Contractor</PrimaryButton>
-              </form>
-            </div>
-          </div>
-        </article>
+      {loading ? <p className="mt-4 text-sm text-slate-500">Loading contacts…</p> : null}
 
-        <article className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Subcontractors</h3>
-              <p className="mt-1 text-sm text-slate-500">Trade partners used in submittal and RFI routing.</p>
-            </div>
-            <input value={subcontractorSearch} onChange={(event) => setSubcontractorSearch(event.target.value)} placeholder="Search subcontractors" className="min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
-            <div className="ui-scroll max-h-[320px] overflow-auto rounded-lg border border-slate-200">
-              <table className="ui-table min-w-full">
-                <thead><tr className="bg-slate-100"><th className="border px-3 py-2 text-left">ID</th><th className="border px-3 py-2 text-left">Name</th><th className="border px-3 py-2 text-left">Actions</th></tr></thead>
-                <tbody>
-                  {filteredSubcontractors.map((item) => (
-                    <tr key={item.id}>
-                      <td className="border px-3 py-2">{item.id}</td>
-                      <td className="border px-3 py-2">{editingSubcontractorId === item.id ? <input value={editingSubcontractorName} onChange={(event) => setEditingSubcontractorName(event.target.value)} className="w-full rounded border border-slate-300 px-2 py-1 text-sm" /> : item.name}</td>
-                      <td className="border px-3 py-2">
-                        <div className="flex gap-2">
-                          {editingSubcontractorId === item.id ? (
-                            <>
-                              <button type="button" onClick={async () => { const res = await updateSubcontractor(token, item.id, { name: editingSubcontractorName.trim() }); if (!res.ok) return setMessage('Failed to update subcontractor.'); setEditingSubcontractorId(null); setEditingSubcontractorName(''); setMessage('Subcontractor updated.'); await loadContacts() }} className="rounded bg-emerald-600 px-2 py-1 text-xs text-white">Save</button>
-                              <button type="button" onClick={() => { setEditingSubcontractorId(null); setEditingSubcontractorName('') }} className="rounded bg-slate-200 px-2 py-1 text-xs">Cancel</button>
-                            </>
-                          ) : (
-                            <>
-                              <button type="button" onClick={() => { setEditingSubcontractorId(item.id); setEditingSubcontractorName(item.name) }} className="rounded bg-slate-200 px-2 py-1 text-xs">Edit</button>
-                              <button type="button" onClick={() => void handleDelete('Subcontractor', () => deleteSubcontractor(token, item.id))} className="rounded bg-rose-600 px-2 py-1 text-xs text-white">Delete</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+      {!loading
+        ? sheets.map(({ category, rows }) => (
+            <div key={category} className="mt-6">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-lg font-semibold text-brand-700">{CONTACT_CATEGORY_TITLES[category]}</h3>
+                <button type="button" onClick={() => openAdd(category)} className="text-sm font-semibold text-brand-700 hover:underline">+ Add</button>
+              </div>
+              <div className="ui-scroll mt-2 overflow-x-auto">
+                <table className="ui-table min-w-[960px]">
+                  <thead>
+                    <tr className="bg-slate-100">
+                      <th className="border px-3 py-2 text-left">{CONTACT_ROLE_LABELS[category]}</th>
+                      {FIELDS.map((field) => <th key={field.key} className="border px-3 py-2 text-left">{field.label}</th>)}
+                      <th className="w-32 border px-3 py-2" />
                     </tr>
-                  ))}
-                  {filteredSubcontractors.length === 0 ? <tr><td colSpan={3} className="border px-3 py-8"><EmptyState title="No subcontractors found" description="Create one using the form on the right." /></td></tr> : null}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => {
+                      if (row.kind === 'empty') {
+                        return (
+                          <tr key={`role-${row.roleId}`}>
+                            <td className="whitespace-nowrap border px-3 py-1.5 text-sm font-medium">{row.role}</td>
+                            {FIELDS.map((field) => <td key={field.key} className="border px-3 py-1.5" />)}
+                            <td className="whitespace-nowrap border px-3 py-1.5 text-right text-xs">
+                              <button type="button" onClick={() => openAdd(category, row.role)} className="font-semibold text-brand-700 hover:underline">Add</button>
+                              <button type="button" onClick={() => void handleRemoveRole(row.roleId, row.role)} className="ml-3 text-slate-500 hover:underline" title="Remove this role from the list">
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      }
+                      const { contact } = row
+                      const isEditing = editingId === contact.id && editDraft
+                      return (
+                        <tr key={contact.id}>
+                          <td className="whitespace-nowrap border px-3 py-1.5 text-sm font-medium">
+                            {isEditing ? (
+                              <input
+                                list={`contact-roles-${category}`}
+                                value={editDraft.role}
+                                onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value })}
+                                aria-label="Role"
+                                className={cellInputClass}
+                              />
+                            ) : (
+                              contact.role || <span className="text-slate-400">No {category === 'design_team' ? 'role' : 'trade'}</span>
+                            )}
+                          </td>
+                          {FIELDS.map((field) => (
+                            <td key={field.key} className="border px-3 py-1.5 text-sm">
+                              {isEditing ? (
+                                <input
+                                  type={'type' in field ? field.type : 'text'}
+                                  value={editDraft[field.key]}
+                                  onChange={(e) => setEditDraft({ ...editDraft, [field.key]: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') void handleSave(contact.id)
+                                    if (e.key === 'Escape') setEditingId(null)
+                                  }}
+                                  aria-label={field.label}
+                                  className={cellInputClass}
+                                />
+                              ) : field.key === 'email' && contact.email ? (
+                                <a href={`mailto:${contact.email}`} className="text-brand-700 hover:underline">{contact.email}</a>
+                              ) : (
+                                contact[field.key]
+                              )}
+                            </td>
+                          ))}
+                          <td className="whitespace-nowrap border px-3 py-1.5 text-right text-xs">
+                            {isEditing ? (
+                              <>
+                                <button type="button" disabled={saving} onClick={() => void handleSave(contact.id)} className="font-semibold text-brand-700 hover:underline">Save</button>
+                                <button type="button" onClick={() => setEditingId(null)} className="ml-3 text-slate-500 hover:underline">Cancel</button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingId(contact.id)
+                                    setEditDraft({
+                                      category: contact.category,
+                                      role: contact.role,
+                                      company: contact.company,
+                                      contact: contact.contact,
+                                      email: contact.email,
+                                      phone: contact.phone,
+                                      notes: contact.notes,
+                                    })
+                                  }}
+                                  className="font-semibold text-brand-700 hover:underline"
+                                >
+                                  Edit
+                                </button>
+                                <button type="button" onClick={() => void handleDelete(contact)} className="ml-3 text-rose-700 hover:underline">Delete</button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={FIELDS.length + 2} className="border px-3 py-3 text-sm text-slate-500">No contacts match the search.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <form onSubmit={handleCreateSubcontractor} className="space-y-3">
-                <h4 className="text-sm font-semibold text-slate-900">Add Subcontractor</h4>
-                <input value={subcontractorName} onChange={(event) => setSubcontractorName(event.target.value)} placeholder="Subcontractor name" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                <PrimaryButton type="submit">Save Subcontractor</PrimaryButton>
-              </form>
-            </div>
-          </div>
-        </article>
-      </div>
+          ))
+        : null}
     </section>
   )
 }

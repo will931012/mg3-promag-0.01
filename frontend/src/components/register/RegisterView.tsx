@@ -1,13 +1,13 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import EmptyState from '../common/EmptyState'
 import PrimaryButton from '../common/PrimaryButton'
 import StatusBadge from '../common/StatusBadge'
 import RegisterItemDetail from './RegisterItemDetail'
-import { alertTone, ballTone, formatDate, inputClass, statusTone } from './registerUi'
+import AddSubmittalForm from './AddSubmittalForm'
+import { alertTone, ballTone, formatDate, statusTone } from './registerUi'
 import { downloadCsv } from '../../app/tableUtils'
 import {
-  createRegisterItem,
   fetchProjectRegister,
   fetchRegisterMeta,
   responseDetail,
@@ -31,7 +31,6 @@ type BallFilter = '' | 'Subcontractor' | 'GC' | 'reviewer' | 'Closed'
 
 const FIXED_BALLS = new Set(['Subcontractor', 'GC', 'Closed', 'Superseded', ''])
 
-const emptyNewItem = { submittal_no: '', spec_section: '', description: '', discipline: '', submittal_type: '', reviewer: '' }
 
 export default function RegisterView({ token, projectId, selectedItemId, onOpenItem, setMessage, onChanged }: RegisterViewProps) {
   const [register, setRegister] = useState<ProjectRegister | null>(null)
@@ -46,7 +45,6 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
   const [alertsOnly, setAlertsOnly] = useState(false)
   const [reviewDaysInput, setReviewDaysInput] = useState('')
   const [showNewItem, setShowNewItem] = useState(false)
-  const [newItem, setNewItem] = useState(emptyNewItem)
   const [togglingId, setTogglingId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -140,19 +138,20 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
     setMessage(`Review period set to ${value} days.`)
   }
 
-  const handleCreateItem = async (event: FormEvent) => {
-    event.preventDefault()
-    const res = await createRegisterItem(token, projectId, newItem)
-    if (!res.ok || !res.data) return setMessage(responseDetail(res.data, 'Failed to add item.'))
-    const created = res.data
-    setRegister((prev) =>
-      prev
-        ? { ...prev, items: [...prev.items, created].sort((a, b) => a.submittal_no.localeCompare(b.submittal_no, undefined, { numeric: true })) }
-        : prev
-    )
-    setNewItem(emptyNewItem)
+  const handleSubmittalSaved = (saved: RegisterItem, isNew: boolean) => {
+    if (isNew) {
+      setRegister((prev) =>
+        prev
+          ? { ...prev, items: [...prev.items, saved].sort((a, b) => a.submittal_no.localeCompare(b.submittal_no, undefined, { numeric: true })) }
+          : prev
+      )
+      onChanged()
+    } else {
+      replaceItem(saved)
+    }
     setShowNewItem(false)
-    setMessage(`Added ${created.submittal_no}.`)
+    // Make sure the saved row is visible: not-yet-submitted items aren't in the "Submitted" view.
+    if (!saved.submissions && usage === 'submitted') setUsage('in_use')
   }
 
   const exportCsv = () => {
@@ -295,48 +294,22 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
         </div>
 
         {showNewItem ? (
-          <form onSubmit={(event) => void handleCreateItem(event)} className="mt-3 rounded-xl border border-slate-200 bg-surface p-4">
-            <p className="text-sm font-semibold text-slate-900">Add a submittal for this project only</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Number it CSI section + sequence, e.g. 08 44 00-03. To log a submission for an item already on the list, open it from the table. To add it to every project, ask an admin to add it to the master list.
-            </p>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <label className="text-sm text-slate-700">Submittal No.
-                <input required value={newItem.submittal_no} onChange={(e) => setNewItem({ ...newItem, submittal_no: e.target.value })} className={inputClass} />
-              </label>
-              <label className="text-sm text-slate-700">Spec section
-                <input value={newItem.spec_section} onChange={(e) => setNewItem({ ...newItem, spec_section: e.target.value })} className={inputClass} />
-              </label>
-              <label className="text-sm text-slate-700 md:col-span-1">Description
-                <input required value={newItem.description} onChange={(e) => setNewItem({ ...newItem, description: e.target.value })} className={inputClass} />
-              </label>
-              <label className="text-sm text-slate-700">Discipline
-                <select value={newItem.discipline} onChange={(e) => setNewItem({ ...newItem, discipline: e.target.value })} className={inputClass}>
-                  <option value="" />
-                  {(meta?.disciplines ?? []).map((option) => <option key={option}>{option}</option>)}
-                </select>
-              </label>
-              <label className="text-sm text-slate-700">Type
-                <select value={newItem.submittal_type} onChange={(e) => setNewItem({ ...newItem, submittal_type: e.target.value })} className={inputClass}>
-                  <option value="" />
-                  {(meta?.submittal_types ?? []).map((option) => <option key={option}>{option}</option>)}
-                </select>
-              </label>
-              <label className="text-sm text-slate-700">Reviewer
-                <select value={newItem.reviewer} onChange={(e) => setNewItem({ ...newItem, reviewer: e.target.value })} className={inputClass}>
-                  <option value="" />
-                  {(meta?.reviewers ?? []).map((option) => <option key={option}>{option}</option>)}
-                </select>
-              </label>
-            </div>
-            <PrimaryButton type="submit" className="mt-3">Add to register</PrimaryButton>
-          </form>
+          <AddSubmittalForm
+            token={token}
+            projectId={projectId}
+            items={items}
+            meta={meta}
+            reviewDays={register.project.review_days}
+            onSaved={handleSubmittalSaved}
+            onCancel={() => setShowNewItem(false)}
+            setMessage={setMessage}
+          />
         ) : null}
 
         <p className="mt-3 text-sm text-slate-600">
           Showing {filteredItems.length} of {items.length} items.
           {usage === 'submitted'
-            ? ' To log the first submission of an item, show "All used on this project" and open it.'
+            ? ' Use + Add submittal to log a new one; type its description to pick it from the master list.'
             : ' Untick an item that doesn’t apply to this project instead of deleting it.'}
         </p>
 
@@ -391,7 +364,7 @@ export default function RegisterView({ token, projectId, selectedItemId, onOpenI
             {usage === 'submitted' && !search && !discipline && !status && !ball && !alertsOnly ? (
               <EmptyState
                 title="Nothing submitted yet"
-                description="Show every item used on this project and open one to log its first submission, or add a new submittal."
+                description="Use + Add submittal and type the description to pick it from the master list."
                 ctaLabel="Show all items"
                 onCta={() => setUsage('in_use')}
               />
